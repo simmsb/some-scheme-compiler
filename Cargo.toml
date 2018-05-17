@@ -1,0 +1,6 @@
+[package]
+name = "some-scheme-compiler"
+version = "0.1.0"
+authors = ["Ben Simms <ben@bensimms.moe>"]
+
+[dependencies]
