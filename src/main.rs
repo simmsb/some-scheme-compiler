@@ -5,8 +5,8 @@ extern crate nom;
 
 pub mod cdsl;
 pub mod parse;
+pub mod transform;
 
-use std::boxed::Box;
 use cdsl::*;
 
 fn main() {
@@ -20,6 +20,10 @@ fn main() {
 
     println!("{}", fn_.export());
 
-    let r = parse::parse_exp("((lambda (x) x) y)");
-    println!("{:?}", r);
+    if let Ok((_, r)) = parse::parse_exp("((lambda (x y) (lambda (lol) no) y) y)") {
+        println!("{:?}", r);
+
+        let resolved = transform::expand_lam(r);
+        println!("{:?}", resolved);
+    }
 }

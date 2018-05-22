@@ -6,6 +6,19 @@ pub enum LExpr<'a> {
     Lam(Vec<&'a str>, Vec<LExpr<'a>>),
     App(Box<LExpr<'a>>, Vec<LExpr<'a>>),
     Var(&'a str),
+
+
+    /// A lambda with no parameters
+    LamNone(Vec<LExpr<'a>>),
+
+    /// A lambda expanded to one parameter
+    LamOne(&'a str, Vec<LExpr<'a>>),
+
+    /// An application with zero arguments
+    AppNone(Box<LExpr<'a>>),
+
+    /// An application expanded to only one argument
+    AppOne(Box<LExpr<'a>>, Box<LExpr<'a>>),
 }
 
 fn ident_char(chr: char) -> bool {
@@ -40,13 +53,13 @@ fn parse_lam<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
 }
 
 pub fn parse_app<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
-    dbg_dmp!(input, do_parse!(
+    do_parse!(input,
         char!('(') >>
         rand: parse_exp >>
         rator: ws!(many0!(parse_exp)) >>
         char!(')') >>
         (LExpr::App(box rand, rator))
-    ))
+    )
 }
 
 pub fn parse_exp<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
