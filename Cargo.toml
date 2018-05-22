@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["Ben Simms <ben@bensimms.moe>"]
 
 [dependencies]
+nom = "4.0.0"

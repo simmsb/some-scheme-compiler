@@ -1,37 +1,37 @@
-use std::rc::Rc;
+use std::boxed::Box;
 
 pub enum CExpr {
     BinOp {
         op: String,
-        left: Rc<CExpr>,
-        right: Rc<CExpr>,
+        left: Box<CExpr>,
+        right: Box<CExpr>,
     },
     PreUnOp {
         op: String,
-        ex: Rc<CExpr>,
+        ex: Box<CExpr>,
     },
     PostUnOp {
         op: String,
-        ex: Rc<CExpr>,
+        ex: Box<CExpr>,
     },
     ArrIndexOp {
-        index: Rc<CExpr>,
-        expr: Rc<CExpr>,
+        index: Box<CExpr>,
+        expr: Box<CExpr>,
     },
     FunCallOp {
-        expr: Rc<CExpr>,
-        ands: Vec<Rc<CExpr>>,
+        expr: Box<CExpr>,
+        ands: Vec<Box<CExpr>>,
     },
     Cast {
-        ex: Rc<CExpr>,
-        typ: Rc<CType>,
+        ex: Box<CExpr>,
+        typ: Box<CType>,
     },
     Lit(String),
 }
 
 pub enum CType {
-    Ptr { to: Rc<CType> },
-    Arr { of: Rc<CType>, len: usize },
+    Ptr { to: Box<CType> },
+    Arr { of: Box<CType>, len: usize },
     Int { size: usize, sign: bool },
     Struct { name: String },
     Union { name: String },
@@ -39,42 +39,42 @@ pub enum CType {
 
 pub enum CStmt {
     IF {
-        cond: Rc<CExpr>,
-        body: Rc<CStmt>,
+        cond: Box<CExpr>,
+        body: Box<CStmt>,
     },
     While {
-        cond: Rc<CExpr>,
-        body: Rc<CStmt>,
+        cond: Box<CExpr>,
+        body: Box<CStmt>,
     },
     For {
-        init: Rc<CExpr>,
-        test: Rc<CExpr>,
-        updt: Rc<CExpr>,
-        body: Rc<CStmt>,
+        init: Box<CExpr>,
+        test: Box<CExpr>,
+        updt: Box<CExpr>,
+        body: Box<CStmt>,
     },
-    Block(Vec<Rc<CStmt>>),
-    Expr(Rc<CExpr>),
+    Block(Vec<Box<CStmt>>),
+    Expr(Box<CExpr>),
 }
 
 pub enum CDecl {
     Fun {
         name: String,
-        typ: Rc<CType>,
-        args: Vec<(String, Rc<CType>)>,
-        body: Vec<Rc<CStmt>>,
+        typ: Box<CType>,
+        args: Vec<(String, Box<CType>)>,
+        body: Vec<Box<CStmt>>,
     },
     Struct {
         name: String,
-        members: Vec<(String, Rc<CType>)>,
+        members: Vec<(String, Box<CType>)>,
     },
     Union {
         name: String,
-        members: Vec<(String, Rc<CType>)>,
+        members: Vec<(String, Box<CType>)>,
     },
     Var {
         name: String,
-        typ: Rc<CType>,
-        init: Option<Rc<CExpr>>,
+        typ: Box<CType>,
+        init: Option<Box<CExpr>>,
     },
 }
 
