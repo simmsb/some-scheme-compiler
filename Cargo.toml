@@ -5,3 +5,4 @@ authors = ["Ben Simms <ben@bensimms.moe>"]
 
 [dependencies]
 nom = "4.0.0"
+itertools = "0.7.8"

@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate nom;
+extern crate itertools;
 
 pub mod cdsl;
 pub mod parse;
@@ -20,10 +21,17 @@ fn main() {
 
     println!("{}", fn_.export());
 
-    if let Ok((_, r)) = parse::parse_exp("((lambda (x y) (lambda (lol) no) y) y)") {
+    if let Ok((_, r)) = parse::parse_exp("((lambda (a b c) (a) (b) (c)) x y z)") {
         println!("{:?}", r);
 
-        let resolved = transform::expand_lam(r);
-        println!("{:?}", resolved);
+        let mut context = transform::TransformContext::new();
+
+        println!("{}", r);
+        let r = transform::expand_lam(r, &mut context);
+        println!("{}", r);
+        let r = transform::expand_app(r, &mut context);
+        println!("{}", r);
+        let r = transform::expand_lam_body(r, &mut context);
+        println!("{}", r);
     }
 }
