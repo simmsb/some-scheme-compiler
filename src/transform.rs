@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use parse::LExpr;
+use nodes::LExpr;
 
 // compiler transformation stage
 
@@ -17,10 +17,20 @@ impl TransformContext {
         }
     }
 
-    pub fn gen_var(&mut self) -> String {
+    pub fn gen_ident(&mut self) -> String {
         let var = format!("$anon_var_{}", self.genvar_count);
         self.genvar_count += 1;
         var
+    }
+
+    pub fn gen_var<'a>(&mut self) -> LExpr<'a> {
+        LExpr::Var(Cow::Owned(self.gen_ident()))
+    }
+
+    pub fn gen_cont<'a>(&mut self) -> LExpr<'a> {
+        let var = format!("$cont_var_{}", self.genvar_count);
+        self.genvar_count += 1;
+        LExpr::Var(Cow::Owned(var))
     }
 }
 
@@ -32,10 +42,14 @@ impl TransformContext {
 ///   (lambda (b)
 ///     (lambda (c)
 ///       ...)))
-pub fn expand_lam<'a>(expr: LExpr<'a>, mut ctx: &mut TransformContext) -> LExpr<'a> {
+/// Transform calls with multiple parameters into nested calls each applying single parameters
+/// (f a b c)
+/// becomes
+/// ((((f) a) b) c)
+pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
     match expr {
         LExpr::Lam(args, body) => {
-            let body: Vec<_> = body.into_iter().map(|x| expand_lam(x, &mut ctx)).collect();
+            let body: Vec<_> = body.into_iter().map(|x| expand_lam_app(x, ctx)).collect();
             match args.len() {
                 0 => LExpr::LamNone(body),
                 _ => {
@@ -44,38 +58,18 @@ pub fn expand_lam<'a>(expr: LExpr<'a>, mut ctx: &mut TransformContext) -> LExpr<
                     let first = LExpr::LamOne(iter.next().unwrap(), body);
 
                     iter.fold(
-                        first, |acc, arg| LExpr::LamOne(arg, vec![acc])
+                        first, |acc, arg| LExpr::LamOneOne(arg, box acc)
                     )
                 }
             }
         },
         LExpr::App(box operator, operands) => {
-            let operator = expand_lam(operator, &mut ctx);
-            let operands = operands.into_iter().map(|o| expand_lam(o, &mut ctx)).collect();
-
-            LExpr::App(box operator, operands)
-        },
-        x => x,
-    }
-}
-
-
-/// Transform calls with multiple parameters into nested calls each applying single parameters
-/// (f a b c)
-/// becomes
-/// ((((f) a) b) c)
-pub fn expand_app<'a>(expr: LExpr<'a>, mut ctx: &mut TransformContext) -> LExpr<'a> {
-    match expr {
-        LExpr::Lam(..) => panic!("expand_app should be used after expand_lam"),
-        LExpr::App(box operator, operands) => {
+            let operator = expand_lam_app(operator, ctx);
+            let operands: Vec<_> = operands.into_iter().map(|o| expand_lam_app(o, ctx)).collect();
             let num_operands = operands.len();
-            let operator = expand_app(operator, &mut ctx);
-            let operands: Vec<_> = operands.into_iter().map(|o| expand_app(o, &mut ctx)).collect();
             match num_operands {
                 0 => LExpr::AppNone(box operator),
                 _ => {
-                    // let mut iter = operands.into_iter();
-
                     let mut operands = operands.into_iter();
 
                     let first = LExpr::AppOne(box operator, box operands.next().unwrap());
@@ -86,9 +80,8 @@ pub fn expand_app<'a>(expr: LExpr<'a>, mut ctx: &mut TransformContext) -> LExpr<
                 }
             }
         },
-        LExpr::LamNone(body)     => LExpr::LamNone(body.into_iter().map(|b| expand_app(b, &mut ctx)).collect()),
-        LExpr::LamOne(arg, body) => LExpr::LamOne(arg, body.into_iter().map(|b| expand_app(b, &mut ctx)).collect()),
-        x => x,
+        LExpr::Var(arg) => LExpr::Var(arg),
+        _ => panic!("Shouldn't be touching this yet"),
     }
 }
 
@@ -105,67 +98,136 @@ pub fn expand_app<'a>(expr: LExpr<'a>, mut ctx: &mut TransformContext) -> LExpr<
 ///    a)))
 ///
 /// where $unique is a unique variable name
-pub fn expand_lam_body<'a>(expr: LExpr<'a>, mut ctx: &mut TransformContext) -> LExpr<'a> {
+pub fn expand_lam_body<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
+    use nodes::LExpr::*;
+
     match expr {
-        LExpr::Lam(..) | LExpr::App(..) => panic!("expand_lam_body should be used after expand_lam and expand_app"),
-        LExpr::LamNone(body) => {
+        LamNone(body) => {
             let num_body = body.len();
             let body: Vec<_> = body.into_iter()
                                    .rev()
-                                   .map(|b| expand_lam_body(b, &mut ctx))
+                                   .map(|b| expand_lam_body(b, ctx))
                                    .collect();
             let inner = match num_body {
-                0 => LExpr::LamNoneNone, // (lambda ()) ; wat
+                0 => LamNoneNone, // (lambda ()) ; wat
                 _ => {
                     // get the last expression, as this won't be placed in a (... x) wrapper
                     let mut body = body.into_iter();
                     let first = body.next().unwrap();
 
                     body.fold(
-                        first, |acc, operand| LExpr::AppOne(
-                            box LExpr::LamOneOne(Cow::Owned(ctx.gen_var()), box acc),
+                        first, |acc, operand| AppOne(
+                            box LamOneOne(Cow::Owned(ctx.gen_ident()), box acc),
                             box operand
                         )
                     )
                 }
             };
-            LExpr::LamNoneOne(box inner)
+            LamNoneOne(box inner)
         },
-        LExpr::LamOne(arg, body) => {
+        LamOne(arg, body) => {
             let num_body = body.len();
             let body: Vec<_> = body.into_iter()
                                    .rev()
-                                   .map(|b| expand_lam_body(b, &mut ctx))
+                                   .map(|b| expand_lam_body(b, ctx))
                                    .collect();
             let inner = match num_body {
-                0 => LExpr::LamNoneNone, // (lambda ()) ; wat
+                0 => LamNoneNone, // (lambda ()) ; wat
                 _ => {
                     // get the last expression, as this won't be placed in a (... x) wrapper
                     let mut body = body.into_iter();
                     let first = body.next().unwrap();
 
                     body.fold(
-                        first, |acc, arg| LExpr::AppOne(
-                            box LExpr::LamOneOne(Cow::Owned(ctx.gen_var()), box acc),
+                        first, |acc, arg| AppOne(
+                            box LamOneOne(Cow::Owned(ctx.gen_ident()), box acc),
                             box arg
                         )
                     )
                 }
             };
-            LExpr::LamOneOne(arg, box inner)
+            LamOneOne(arg, box inner)
         },
-        LExpr::AppNone(box operator) => LExpr::AppNone(box expand_lam_body(operator, &mut ctx)),
-        LExpr::AppOne(box operator, box operand) => LExpr::AppOne(box expand_lam_body(operator, &mut ctx),
-                                                                  box expand_lam_body(operand, &mut ctx)),
+        AppNone(box operator) => AppNone(box expand_lam_body(operator, ctx)),
+        AppOne(box operator, box operand) => AppOne(box expand_lam_body(operator, ctx),
+                                                    box expand_lam_body(operand, ctx)),
         x => x,
     }
 }
 
 
+pub fn cps_transform_cont<'a>(expr: LExpr<'a>, cont: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
+    match expr {
+        LExpr::Var(..) |
+        LExpr::LamNoneOne(..) |
+        LExpr::LamNoneNone |
+        LExpr::LamOneOne(..) |
+        LExpr::LamOneNone(..) |
+        LExpr::LamNoneNoneCont(..) |
+        LExpr::LamOneOneCont(..) |
+        LExpr::LamOneNoneCont(..) =>
+            LExpr::AppOne(box cont, box cps_transform(expr, ctx)),
+        LExpr::AppNone(box operator) => {
+            let o: Cow<'a, str> = Cow::Owned(ctx.gen_ident());
+            let o_var = LExpr::Var(o.clone());
 
-// Cps conversion
-//
-// Rules:
-//
-//
-// pub fn
+            let new_cont = LExpr::LamOneOne(
+                o.clone(),
+                box LExpr::AppOne(box o_var, box cont)
+            );
+
+            cps_transform_cont(operator, new_cont, ctx)
+        },
+        LExpr::AppOne(box operator, box operand) => {
+            let ator: Cow<'a, str> = Cow::Owned(ctx.gen_ident());
+            let rand: Cow<'a, str> = Cow::Owned(ctx.gen_ident());
+
+            let new_cont = LExpr::LamOneOne(
+                ator.clone(),
+                box cps_transform_cont(
+                    operand,
+                    LExpr::LamOneOne(
+                        rand.clone(),
+                        box LExpr::AppOneCont(
+                            box LExpr::Var(ator.clone()),
+                            box LExpr::Var(rand.clone()),
+                            box cont
+                        ),
+                    ),
+                    ctx
+                )
+            );
+
+            cps_transform_cont(operator, new_cont, ctx)
+        },
+        LExpr::AppOneCont(..) | LExpr::LamNoneOneCont(..) => expr,
+        LExpr::Lam(..) | LExpr::App(..) | LExpr::LamNone(..) | LExpr::LamOne(..) =>
+            panic!("These shouldn't exist here"),
+    }
+}
+
+
+pub fn cps_transform<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
+    match expr {
+        LExpr::LamNoneOne(box expr) => {
+            let cont = ctx.gen_cont();
+            LExpr::LamNoneOneCont(
+                box cps_transform_cont(expr, cont.clone(), ctx),
+                box cont.clone()
+            )
+        },
+        LExpr::LamNoneNone =>
+            LExpr::LamNoneNoneCont(box ctx.gen_cont()),
+        LExpr::LamOneOne(arg, box expr) => {
+            let cont = ctx.gen_cont();
+            LExpr::LamOneOneCont(
+                arg,
+                box cps_transform_cont(expr, cont.clone(), ctx),
+                box cont.clone()
+            )
+        },
+        LExpr::LamOneNone(arg) =>
+            LExpr::LamOneNoneCont(arg, box ctx.gen_cont()),
+        x => x,
+    }
+}

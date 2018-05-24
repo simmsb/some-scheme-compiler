@@ -7,6 +7,7 @@ extern crate itertools;
 pub mod cdsl;
 pub mod parse;
 pub mod transform;
+pub mod nodes;
 
 use cdsl::*;
 
@@ -27,11 +28,11 @@ fn main() {
         let mut context = transform::TransformContext::new();
 
         println!("{}", r);
-        let r = transform::expand_lam(r, &mut context);
-        println!("{}", r);
-        let r = transform::expand_app(r, &mut context);
-        println!("{}", r);
+        let r = transform::expand_lam_app(r, &mut context);
+        println!("{0}\n{0:?}", r);
         let r = transform::expand_lam_body(r, &mut context);
-        println!("{}", r);
+        println!("{0}\n{0:?}", r);
+        let r = transform::cps_transform(r, &mut context);
+        println!("{0}\n{0:?}", r);
     }
 }
