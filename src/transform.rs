@@ -17,14 +17,14 @@ impl TransformContext {
         }
     }
 
-    pub fn gen_ident(&mut self) -> String {
-        let var = format!("$anon_var_{}", self.genvar_count);
+    pub fn gen_ident(&mut self, name: &str) -> String {
+        let var = format!("$anon_var_{}_{}", name, self.genvar_count);
         self.genvar_count += 1;
         var
     }
 
-    pub fn gen_var<'a>(&mut self) -> LExpr<'a> {
-        LExpr::Var(Cow::Owned(self.gen_ident()))
+    pub fn gen_var<'a>(&mut self, name: &str) -> LExpr<'a> {
+        LExpr::Var(Cow::Owned(self.gen_ident(name)))
     }
 
     pub fn gen_cont<'a>(&mut self) -> LExpr<'a> {
@@ -58,7 +58,7 @@ pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
                     let first = LExpr::LamOne(iter.next().unwrap(), body);
 
                     iter.fold(
-                        first, |acc, arg| LExpr::LamOneOne(arg, box acc)
+                        first, |acc, arg| LExpr::LamOne(arg, vec![acc])
                     )
                 }
             }
@@ -117,7 +117,7 @@ pub fn expand_lam_body<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
 
                     body.fold(
                         first, |acc, operand| AppOne(
-                            box LamOneOne(Cow::Owned(ctx.gen_ident()), box acc),
+                            box LamOneOne(Cow::Owned(ctx.gen_ident("lam_expand")), box acc),
                             box operand
                         )
                     )
@@ -140,7 +140,7 @@ pub fn expand_lam_body<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
 
                     body.fold(
                         first, |acc, arg| AppOne(
-                            box LamOneOne(Cow::Owned(ctx.gen_ident()), box acc),
+                            box LamOneOne(Cow::Owned(ctx.gen_ident("lam_expand")), box acc),
                             box arg
                         )
                     )
@@ -168,37 +168,42 @@ pub fn cps_transform_cont<'a>(expr: LExpr<'a>, cont: LExpr<'a>, ctx: &mut Transf
         LExpr::LamOneNoneCont(..) =>
             LExpr::AppOne(box cont, box cps_transform(expr, ctx)),
         LExpr::AppNone(box operator) => {
-            let o: Cow<'a, str> = Cow::Owned(ctx.gen_ident());
+            let o: Cow<'a, str> = Cow::Owned(ctx.gen_ident("o"));
             let o_var = LExpr::Var(o.clone());
 
-            let new_cont = LExpr::LamOneOne(
-                o.clone(),
-                box LExpr::AppOne(box o_var, box cont)
+            let new_cont = LExpr::LamNoneOne(
+                box LExpr::AppNone(box cont)
             );
 
-            cps_transform_cont(operator, new_cont, ctx)
+            cps_transform_cont(operator,
+                               LExpr::LamOneOne(o.clone(), box LExpr::AppOne(box o_var, box new_cont)),
+                               ctx)
         },
         LExpr::AppOne(box operator, box operand) => {
-            let ator: Cow<'a, str> = Cow::Owned(ctx.gen_ident());
-            let rand: Cow<'a, str> = Cow::Owned(ctx.gen_ident());
+            let operator_var: Cow<'a, str> = Cow::Owned(ctx.gen_ident("operator_var"));
+            let operand_var: Cow<'a, str> = Cow::Owned(ctx.gen_ident("operand_var"));
+            let rv_var: Cow<'a, str> = Cow::Owned(ctx.gen_ident("rv"));
 
             let new_cont = LExpr::LamOneOne(
-                ator.clone(),
-                box cps_transform_cont(
-                    operand,
-                    LExpr::LamOneOne(
-                        rand.clone(),
-                        box LExpr::AppOneCont(
-                            box LExpr::Var(ator.clone()),
-                            box LExpr::Var(rand.clone()),
-                            box cont
-                        ),
-                    ),
-                    ctx
-                )
-            );
+                rv_var.clone(),
+                box LExpr::AppOne(
+                    box cont.clone(),
+                    box LExpr::Var(rv_var.clone())));
 
-            cps_transform_cont(operator, new_cont, ctx)
+            cps_transform_cont(
+                operator,
+                LExpr::LamOneOne(
+                    operator_var.clone(),
+                    box cps_transform_cont(
+                        operand,
+                        LExpr::LamOneOne(
+                            operand_var.clone(),
+                            box LExpr::AppOneCont(
+                                box LExpr::Var(operator_var.clone()),
+                                box LExpr::Var(operand_var.clone()),
+                                box new_cont)),
+                    ctx)),
+            ctx)
         },
         LExpr::AppOneCont(..) | LExpr::LamNoneOneCont(..) => expr,
         LExpr::Lam(..) | LExpr::App(..) | LExpr::LamNone(..) | LExpr::LamOne(..) =>
@@ -210,20 +215,32 @@ pub fn cps_transform_cont<'a>(expr: LExpr<'a>, cont: LExpr<'a>, ctx: &mut Transf
 pub fn cps_transform<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
     match expr {
         LExpr::LamNoneOne(box expr) => {
-            let cont = ctx.gen_cont();
+            let cont_var: Cow<'a, str> = Cow::Owned(ctx.gen_ident("cont_var"));
+            let cont_var_exp = LExpr::Var(cont_var.clone());
+            let rv_var: Cow<'a, str> = Cow::Owned(ctx.gen_ident("rv_var"));
+            let rv_var_exp = LExpr::Var(rv_var.clone());
+            let cont = LExpr::LamOneOne(rv_var.clone(),
+                                        box LExpr::AppOne(box cont_var_exp.clone(),
+                                                          box rv_var_exp));
             LExpr::LamNoneOneCont(
                 box cps_transform_cont(expr, cont.clone(), ctx),
-                box cont.clone()
+                box cont_var_exp.clone()
             )
         },
         LExpr::LamNoneNone =>
             LExpr::LamNoneNoneCont(box ctx.gen_cont()),
         LExpr::LamOneOne(arg, box expr) => {
-            let cont = ctx.gen_cont();
+            let cont_var: Cow<'a, str> = Cow::Owned(ctx.gen_ident("cont_var"));
+            let cont_var_exp = LExpr::Var(cont_var.clone());
+            let rv_var: Cow<'a, str> = Cow::Owned(ctx.gen_ident("rv_var"));
+            let rv_var_exp = LExpr::Var(rv_var.clone());
+            let cont = LExpr::LamOneOne(rv_var.clone(),
+                                        box LExpr::AppOne(box cont_var_exp.clone(),
+                                                          box rv_var_exp));
             LExpr::LamOneOneCont(
                 arg,
                 box cps_transform_cont(expr, cont.clone(), ctx),
-                box cont.clone()
+                box cont_var_exp.clone()
             )
         },
         LExpr::LamOneNone(arg) =>

@@ -45,7 +45,7 @@ pub fn parse_app<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
 }
 
 pub fn parse_exp<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
-    alt!(input, parse_lam | parse_app | parse_var)
+    alt!(input, parse_var | parse_lam | parse_app)
 }
 
 

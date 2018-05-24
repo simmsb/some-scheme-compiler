@@ -22,7 +22,7 @@ fn main() {
 
     println!("{}", fn_.export());
 
-    if let Ok((_, r)) = parse::parse_exp("((lambda (a b c) (a) (b) (c)) x y z)") {
+    if let Ok((_, r)) = parse::parse_exp("((lambda () (x) (y)))") {
         println!("{:?}", r);
 
         let mut context = transform::TransformContext::new();
@@ -32,7 +32,10 @@ fn main() {
         println!("{0}\n{0:?}", r);
         let r = transform::expand_lam_body(r, &mut context);
         println!("{0}\n{0:?}", r);
-        let r = transform::cps_transform(r, &mut context);
-        println!("{0}\n{0:?}", r);
+
+        let (_, cont) = parse::parse_exp("(halt)").unwrap();
+
+        let r = transform::cps_transform_cont(r, cont, &mut context);
+        println!("\n\n{0}\n\n{0:?}", r);
     }
 }

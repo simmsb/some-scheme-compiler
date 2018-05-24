@@ -21,6 +21,8 @@ pub enum LExpr<'a> {
     LamNoneOne(Box<LExpr<'a>>),
     LamNoneNone, // for (lambda ())
 
+    // TODO: remove 0 argument/ param stuff, replace with null param and throwaway argument name
+
     /// A lambda with one parameter
     LamOneOne(Cow<'a, str>, Box<LExpr<'a>>),
     LamOneNone(Cow<'a, str>), // for (lambda (_))
