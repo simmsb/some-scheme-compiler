@@ -22,7 +22,7 @@ fn main() {
 
     println!("{}", fn_.export());
 
-    if let Ok((_, r)) = parse::parse_exp("((lambda () (x) (y)))") {
+    if let Ok((_, r)) = parse::parse_exp("((lambda () (y) (x)))") {
         println!("{:?}", r);
 
         let mut context = transform::TransformContext::new();
