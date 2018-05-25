@@ -1,7 +1,11 @@
-use std::boxed::Box;
 use itertools::Itertools;
-use std::borrow::Cow;
-use std::fmt;
+use std::{
+    boxed::Box,
+    borrow::Cow,
+    fmt,
+    rc::Rc,
+    collections::HashSet,
+};
 
 type Cont<'a> = Box<LExpr<'a>>;
 
@@ -22,6 +26,43 @@ pub enum LExpr<'a> {
     AppOneCont(Box<LExpr<'a>>, Box<LExpr<'a>>, Cont<'a>),
 
     LamOneOneCont(Cow<'a, str>, Box<LExpr<'a>>, Cont<'a>),
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Env<'a> {
+    this: HashSet<Cow<'a, str>>,
+    parent: Option<Rc<Env<'a>>>,
+}
+
+
+impl<'a> Env<'a> {
+    fn new(parent: Option<Rc<Env<'a>>>) -> Self {
+        Env {
+            this: HashSet::new(),
+            parent
+        }
+    }
+}
+
+
+/// Expressions that have an explicit environment.
+#[derive(Debug, Clone)]
+pub enum LExEnv<'a> {
+    Lam { arg: Cow<'a, str>,
+          expr: Box<LExEnv<'a>>,
+          cont: Box<LExEnv<'a>>,
+          env: Rc<Env<'a>>
+    },
+    App { rator: Box<LExEnv<'a>>,
+          rand: Box<LExEnv<'a>>,
+          cont: Box<LExEnv<'a>>,
+          env: Rc<Env<'a>>
+    },
+    Var { name: Cow<'a, str>,
+          global: bool,
+          env: Rc<Env<'a>>
+    },
 }
 
 
