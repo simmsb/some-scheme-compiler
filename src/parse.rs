@@ -4,20 +4,15 @@ use nom;
 use nodes::LExpr;
 
 fn ident_char(chr: char) -> bool {
-    use nom::*;
-
-    return is_alphanumeric(chr as u8); // | r"-_|/\".contains(chr);
+    return !" ()\n\r".contains(chr);
 }
 
 pub fn parse_ident<'a>(input: &'a str) -> nom::IResult<&'a str, Cow<'a, str>> {
     map!(input, take_while1!(ident_char), Cow::Borrowed)
 }
 
-fn parse_var<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
-    do_parse!(input,
-        name: parse_ident >>
-        (LExpr::Var(name))
-    )
+pub fn parse_var<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
+    map!(input, ws!(parse_ident), LExpr::Var)
 }
 
 fn parse_lam<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
@@ -45,7 +40,7 @@ pub fn parse_app<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
 }
 
 pub fn parse_exp<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
-    alt!(input, parse_var | parse_lam | parse_app)
+    alt_complete!(input, parse_var | parse_lam | parse_app)
 }
 
 

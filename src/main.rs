@@ -8,6 +8,7 @@ pub mod cdsl;
 pub mod parse;
 pub mod transform;
 pub mod nodes;
+pub mod codegen;
 
 use cdsl::*;
 
@@ -22,20 +23,25 @@ fn main() {
 
     println!("{}", fn_.export());
 
-    if let Ok((_, r)) = parse::parse_exp("((lambda () (y) (x)))") {
-        println!("{:?}", r);
+    let exp = "((lambda () (y) (x)))";
+    if let nom::IResult::Done(_, r) = parse::parse_exp(exp) {
+        println!("{:#?}", r);
 
         let mut context = transform::TransformContext::new();
 
         println!("{}", r);
         let r = transform::expand_lam_app(r, &mut context);
-        println!("{0}\n{0:?}", r);
+        println!("{0}\n{0:#?}", r);
         let r = transform::expand_lam_body(r, &mut context);
-        println!("{0}\n{0:?}", r);
+        println!("{0}\n{0:#?}", r);
 
-        let (_, cont) = parse::parse_exp("(halt)").unwrap();
+        let (_, cont) = parse::parse_var("halt").unwrap();
 
         let r = transform::cps_transform_cont(r, cont, &mut context);
-        println!("\n\n{0}\n\n{0:?}", r);
+        println!("\n\n{0}\n\n{0:#?}", r);
+
+        let r = codegen::resolve_env(r);
+        println!("\n\n{0}\n\n{0:#?}", r);
+
     }
 }

@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["Ben Simms <ben@bensimms.moe>"]
 
 [dependencies]
-nom = "4.0.0"
+nom = "3.2.1"
 itertools = "0.7.8"

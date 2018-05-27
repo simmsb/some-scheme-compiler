@@ -3,8 +3,7 @@ use std::{
     boxed::Box,
     borrow::Cow,
     fmt,
-    rc::Rc,
-    collections::HashSet,
+    collections::HashMap,
 };
 
 type Cont<'a> = Box<LExpr<'a>>;
@@ -15,33 +14,57 @@ pub enum LExpr<'a> {
     App(Box<LExpr<'a>>, Vec<LExpr<'a>>),
     Var(Cow<'a, str>),
 
-    /// A lambda expanded to one parameter
     LamOne(Cow<'a, str>, Vec<LExpr<'a>>),
-
-    /// A lambda with one parameter
-    LamOneOne(Cow<'a, str>, Box<LExpr<'a>>),
 
     AppOne(Box<LExpr<'a>>, Box<LExpr<'a>>),
 
-    AppOneCont(Box<LExpr<'a>>, Box<LExpr<'a>>, Cont<'a>),
+    LamOneOne(Cow<'a, str>, Box<LExpr<'a>>),
 
-    LamOneOneCont(Cow<'a, str>, Box<LExpr<'a>>, Cont<'a>),
+    AppOneCont(Box<LExpr<'a>>, Box<LExpr<'a>>, Cont<'a>),
+    LamOneOneCont(Cow<'a, str>, Cow<'a, str>, Box<LExpr<'a>>),
 }
 
+
+// Process: every lambda body defines new bindings
+// Each binding gets associated with a unique index
+
+
+#[derive(Debug)]
+pub struct EnvCtx(usize);
+
+impl EnvCtx {
+    pub fn new() -> Self {
+        EnvCtx(0)
+    }
+
+    pub fn get_index(&mut self) -> usize {
+        let index = self.0;
+        self.0 += 1;
+        index
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct Env<'a> {
-    this: HashSet<Cow<'a, str>>,
-    parent: Option<Rc<Env<'a>>>,
-}
+pub struct Env<'a>(HashMap<Cow<'a, str>, usize>);
 
 
 impl<'a> Env<'a> {
-    fn new(parent: Option<Rc<Env<'a>>>) -> Self {
-        Env {
-            this: HashSet::new(),
-            parent
+    pub fn new(parent: &Env<'a>, vals: impl IntoIterator<Item=(Cow<'a, str>, usize)>) -> Self {
+        let mut new_map = HashMap::new();
+        for (k, v) in parent.0.iter() {
+            new_map.insert(k.clone(), v.clone());
         }
+        // new_map.extend(parent.0);
+        new_map.extend(vals);
+        Env (new_map)
+    }
+
+    pub fn empty() -> Self {
+        Env (HashMap::new())
+    }
+
+    pub fn get(&self, key: &Cow<'a, str>) -> Option<usize> {
+        self.0.get(key).map(|&a| a)
     }
 }
 
@@ -51,17 +74,25 @@ impl<'a> Env<'a> {
 pub enum LExEnv<'a> {
     Lam { arg: Cow<'a, str>,
           expr: Box<LExEnv<'a>>,
-          cont: Box<LExEnv<'a>>,
-          env: Rc<Env<'a>>
+          env: Env<'a>,
     },
-    App { rator: Box<LExEnv<'a>>,
-          rand: Box<LExEnv<'a>>,
-          cont: Box<LExEnv<'a>>,
-          env: Rc<Env<'a>>
+    LamCont { arg: Cow<'a, str>,
+              cont: Cow<'a, str>,
+              expr: Box<LExEnv<'a>>,
+              env: Env<'a>,
+    },
+    App1 { cont: Box<LExEnv<'a>>,
+           rand: Box<LExEnv<'a>>,
+           env: Env<'a>,
+    },
+    App2 { rator: Box<LExEnv<'a>>,
+           rand: Box<LExEnv<'a>>,
+           cont: Box<LExEnv<'a>>,
+           env: Env<'a>,
     },
     Var { name: Cow<'a, str>,
           global: bool,
-          env: Rc<Env<'a>>
+          env: Env<'a>,
     },
 }
 
@@ -98,7 +129,7 @@ impl<'a> fmt::Display for LExpr<'a> {
                 }
                 write!(f, ")")
             },
-            LamOneOneCont(arg, box expr, box cont) =>
+            LamOneOneCont(arg, cont, box expr) =>
                 write!(f, "(lambda ({} {}) {})", arg, cont, expr),
             AppOneCont(box operator, box operand, box cont) =>
                 write!(f, "({} {} {})", operator, operand, cont),
@@ -106,3 +137,22 @@ impl<'a> fmt::Display for LExpr<'a> {
     }
 }
 
+
+impl<'a> fmt::Display for LExEnv<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use nodes::LExEnv::*;
+
+        match self {
+            Lam {arg, expr, ..} =>
+                write!(f, "(lambda ({}) {})", arg, expr),
+            LamCont {arg, cont, expr, ..} =>
+                write!(f, "(lambda ({} {}) {})", arg, cont, expr),
+            App1 {cont, rand, ..} =>
+                write!(f, "({} {})", cont, rand),
+            App2 {rator, rand, cont, ..} =>
+                write!(f, "({} {} {})", rator, rand, cont),
+            Var {name, ..} =>
+                write!(f, "{}", name),
+        }
+    }
+}

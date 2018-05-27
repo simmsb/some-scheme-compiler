@@ -193,12 +193,12 @@ pub fn cps_transform<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'
             let rv_var_exp = LExpr::Var(rv_var.clone());
             let cont = LExpr::LamOneOne(
                 rv_var.clone(),
-                box LExpr::AppOne(box cont_var_exp.clone(), box rv_var_exp),
+                box LExpr::AppOne(box cont_var_exp.clone(),  box rv_var_exp),
             );
             LExpr::LamOneOneCont(
                 arg,
+                cont_var.clone(),
                 box cps_transform_cont(expr, cont.clone(), ctx),
-                box cont_var_exp.clone(),
             )
         }
         x => x,
