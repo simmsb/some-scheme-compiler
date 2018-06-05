@@ -38,6 +38,7 @@ pub enum CType<'a> {
     Int { size: usize, sign: bool },
     Struct { name: Cow<'a, str> },
     Union { name: Cow<'a, str> },
+    Void,
 }
 
 pub enum CStmt<'a> {
@@ -161,6 +162,7 @@ impl<'a> CType<'a> {
                 },
                 Struct {name} => format!("struct {} {}", name, gen),
                 Union {name} => format!("union {} {}", name, gen),
+                Void => "void".to_owned(),
             };
 
             match typ_o {

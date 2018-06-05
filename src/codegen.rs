@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use cdsl::{CStmt, CExpr, CDecl, CType};
 use nodes::{LExpr, Env, LExEnv};
 // use transform::TransformContext;
 
@@ -154,3 +155,23 @@ pub fn extract_lambdas<'a>(node: LExEnv<'a>) -> (LExEnv<'a>, HashMap<usize, LExE
         x => (x, HashMap::new()),
     }
 }
+
+
+// pub fn lambda_codegen<'a>(lams: Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
+//     use self::LExEnv::*;
+
+//     match self {
+//         Lam { arg, box expr, env, id } => {
+//             let name = format!("lambda_{}", id);
+
+//             let args = ...;
+
+//             let stmt = CDecl::Fun {
+//                 name: Cow::Owned(name),
+//                 typ: box CType::Void,
+//                 args: ...,
+//                 body: ...,
+//             }
+//         }
+//     }
+// }
