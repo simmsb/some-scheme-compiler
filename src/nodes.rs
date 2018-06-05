@@ -25,25 +25,6 @@ pub enum LExpr<'a> {
 }
 
 
-// Process: every lambda body defines new bindings
-// Each binding gets associated with a unique index
-
-
-#[derive(Debug)]
-pub struct EnvCtx(usize);
-
-impl EnvCtx {
-    pub fn new() -> Self {
-        EnvCtx(0)
-    }
-
-    pub fn get_index(&mut self) -> usize {
-        let index = self.0;
-        self.0 += 1;
-        index
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Env<'a>(HashMap<Cow<'a, str>, usize>);
 
@@ -75,11 +56,13 @@ pub enum LExEnv<'a> {
     Lam { arg: Cow<'a, str>,
           expr: Box<LExEnv<'a>>,
           env: Env<'a>,
+          id: usize,
     },
     LamCont { arg: Cow<'a, str>,
               cont: Cow<'a, str>,
               expr: Box<LExEnv<'a>>,
               env: Env<'a>,
+              id: usize,
     },
     App1 { cont: Box<LExEnv<'a>>,
            rand: Box<LExEnv<'a>>,
@@ -94,6 +77,9 @@ pub enum LExEnv<'a> {
           global: bool,
           env: Env<'a>,
     },
+    LamRef {
+        id: usize,
+    }
 }
 
 
@@ -153,6 +139,8 @@ impl<'a> fmt::Display for LExEnv<'a> {
                 write!(f, "({} {} {})", rator, rand, cont),
             Var {name, ..} =>
                 write!(f, "{}", name),
+            LamRef {id} =>
+                write!(f, "lambda:{}", id),
         }
     }
 }

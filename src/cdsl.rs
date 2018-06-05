@@ -1,80 +1,83 @@
-use std::boxed::Box;
+use std::{
+    boxed::Box,
+    borrow::Cow,
+};
 
-pub enum CExpr {
+pub enum CExpr<'a> {
     BinOp {
-        op: String,
-        left: Box<CExpr>,
-        right: Box<CExpr>,
+        op: Cow<'a, str>,
+        left: Box<CExpr<'a>>,
+        right: Box<CExpr<'a>>,
     },
     PreUnOp {
-        op: String,
-        ex: Box<CExpr>,
+        op: Cow<'a, str>,
+        ex: Box<CExpr<'a>>,
     },
     PostUnOp {
-        op: String,
-        ex: Box<CExpr>,
+        op: Cow<'a, str>,
+        ex: Box<CExpr<'a>>,
     },
     ArrIndexOp {
-        index: Box<CExpr>,
-        expr: Box<CExpr>,
+        index: Box<CExpr<'a>>,
+        expr: Box<CExpr<'a>>,
     },
     FunCallOp {
-        expr: Box<CExpr>,
-        ands: Vec<Box<CExpr>>,
+        expr: Box<CExpr<'a>>,
+        ands: Vec<CExpr<'a>>,
     },
     Cast {
-        ex: Box<CExpr>,
-        typ: Box<CType>,
+        ex: Box<CExpr<'a>>,
+        typ: Box<CType<'a>>,
     },
-    Lit(String),
+    Lit(Cow<'a, str>),
 }
 
-pub enum CType {
-    Ptr { to: Box<CType> },
-    Arr { of: Box<CType>, len: usize },
+pub enum CType<'a> {
+    Ptr { to: Box<CType<'a>> },
+    Arr { of: Box<CType<'a>>, len: usize },
     Int { size: usize, sign: bool },
-    Struct { name: String },
-    Union { name: String },
+    Struct { name: Cow<'a, str> },
+    Union { name: Cow<'a, str> },
 }
 
-pub enum CStmt {
+pub enum CStmt<'a> {
     IF {
-        cond: Box<CExpr>,
-        body: Box<CStmt>,
+        cond: Box<CExpr<'a>>,
+        body: Box<CStmt<'a>>,
     },
     While {
-        cond: Box<CExpr>,
-        body: Box<CStmt>,
+        cond: Box<CExpr<'a>>,
+        body: Box<CStmt<'a>>,
     },
     For {
-        init: Box<CExpr>,
-        test: Box<CExpr>,
-        updt: Box<CExpr>,
-        body: Box<CStmt>,
+        init: Box<CExpr<'a>>,
+        test: Box<CExpr<'a>>,
+        updt: Box<CExpr<'a>>,
+        body: Box<CStmt<'a>>,
     },
-    Block(Vec<Box<CStmt>>),
-    Expr(Box<CExpr>),
+    Block(Vec<CStmt<'a>>),
+    Expr(Box<CExpr<'a>>),
 }
 
-pub enum CDecl {
+pub enum CDecl<'a> {
     Fun {
-        name: String,
-        typ: Box<CType>,
-        args: Vec<(String, Box<CType>)>,
-        body: Vec<Box<CStmt>>,
+        name: Cow<'a, str>,
+        typ: Box<CType<'a>>,
+        args: Vec<(Cow<'a, str>, Box<CType<'a>>)>,
+        body: Vec<CStmt<'a>>,
     },
     Struct {
-        name: String,
-        members: Vec<(String, Box<CType>)>,
+        name: Cow<'a, str>,
+        members: Vec<(Cow<'a, str>, Box<CType<'a>>)>,
     },
     Union {
-        name: String,
-        members: Vec<(String, Box<CType>)>,
+        name: Cow<'a, str>,
+        members: Vec<(Cow<'a, str>, Box<CType<'a>>)>,
     },
     Var {
-        name: String,
-        typ: Box<CType>,
-        init: Option<Box<CExpr>>,
+        name: Cow<'a, str>,
+        typ: Box<CType<'a>>,
+        init: Option<CExpr<'a>>,
     },
 }
 
@@ -98,7 +101,7 @@ macro_rules! export_helper {
     }};
 }
 
-impl ToC for CExpr {
+impl<'a> ToC for CExpr<'a> {
     fn export_internal(&self, mut s: &mut String) {
         use self::CExpr::*;
 
@@ -133,13 +136,13 @@ impl ToC for CExpr {
     }
 }
 
-impl ToC for CType {
+impl<'a> ToC for CType<'a> {
     fn export_internal(&self, s: &mut String) {
         s.push_str(&self.export_with_name(""));
     }
 }
 
-impl CType {
+impl<'a> CType<'a> {
     fn export_with_name(&self, name: &str) -> String {
         use self::CType::*;
 
@@ -171,7 +174,7 @@ impl CType {
     }
 }
 
-impl ToC for CStmt {
+impl<'a> ToC for CStmt<'a> {
     fn export_internal(&self, mut s: &mut String) {
         use self::CStmt::*;
 
@@ -185,7 +188,7 @@ impl ToC for CStmt {
     }
 }
 
-impl ToC for CDecl {
+impl<'a> ToC for CDecl<'a> {
     fn export_internal(&self, mut s: &mut String) {
         use self::CDecl::*;
 
