@@ -169,7 +169,7 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 let name = format!("lambda_{}", id);
 
                 let args = vec![(arg.clone(), CType::Ptr(box CType::Struct(Cow::Borrowed("object"))))];
-                let body = codegen(&expr);
+                let body = vec![CStmt::Expr(codegen(&expr))];
 
                 CDecl::Fun {
                     name: Cow::Owned(name),
@@ -186,7 +186,7 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                     (cont.clone(), CType::Ptr(box CType::Struct(Cow::Borrowed("object")))),
                 ];
 
-                let body = codegen(&expr);
+                let body = vec![CStmt::Expr(codegen(&expr))];
 
                 CDecl::Fun {
                     name: Cow::Owned(name),
@@ -201,7 +201,48 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
 }
 
 
-pub fn codegen<'a>(expr: &LExEnv<'a>) -> Vec<CStmt<'a>> {
+/// Generates C code for an expression
+pub fn codegen<'a>(expr: &LExEnv<'a>) -> CExpr<'a> {
+    use self::LExEnv::*;
+
+    match expr {
+        LamRef { id } =>
+            CExpr::Lit(Cow::Owned(format!("lambda_{}", id))),
+        Var { name, global: true, .. } =>
+            gen_global_lookup(name.clone()),
+        Var { name, global: false, .. } =>
+            gen_local_lookup(name.clone()),
+        App1 { cont, rand, .. } => {
+            let cont_compiled = codegen(cont);
+            let rand_compiled = codegen(rand);
+            // TODO: have this do what we want
+            CExpr::FunCallOp {
+                expr: box cont_compiled,
+                ands: vec![rand_compiled],
+            }
+        },
+        App2 { rator, rand, cont, .. } => {
+            let rator_compiled = codegen(rator);
+            let rand_compiled = codegen(rand);
+            let cont_compiled = codegen(cont);
+
+            CExpr::FunCallOp {
+                expr: box rator_compiled,
+                ands: vec![rand_compiled, cont_compiled],
+            }
+        },
+        _ => unreachable!("Should not exist here"),
+    }
+}
+
+
+fn gen_global_lookup<'a>(name: Cow<'a, str>) -> CExpr<'a> {
     // TODO: me
-    unimplemented!()
+    CExpr::Lit(Cow::Owned("NULL".to_string()))
+}
+
+
+fn gen_local_lookup<'a>(name: Cow<'a, str>) -> CExpr<'a> {
+    // TODO: me
+    CExpr::Lit(Cow::Owned("NULL".to_string()))
 }

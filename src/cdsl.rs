@@ -1,8 +1,6 @@
-use std::{
-    boxed::Box,
-    borrow::Cow,
-};
+use std::{borrow::Cow, boxed::Box};
 
+#[derive(Debug)]
 pub enum CExpr<'a> {
     BinOp {
         op: Cow<'a, str>,
@@ -32,6 +30,7 @@ pub enum CExpr<'a> {
     Lit(Cow<'a, str>),
 }
 
+#[derive(Debug)]
 pub enum CType<'a> {
     Ptr(Box<CType<'a>>),
     Arr(Box<CType<'a>>, usize),
@@ -41,6 +40,7 @@ pub enum CType<'a> {
     Void,
 }
 
+#[derive(Debug)]
 pub enum CStmt<'a> {
     IF {
         cond: CExpr<'a>,
@@ -60,6 +60,7 @@ pub enum CStmt<'a> {
     Expr(CExpr<'a>),
 }
 
+#[derive(Debug)]
 pub enum CDecl<'a> {
     Fun {
         name: Cow<'a, str>,
@@ -84,6 +85,7 @@ pub enum CDecl<'a> {
 
 pub trait ToC {
     fn export_internal(&self, s: &mut String);
+
     fn export(&self) -> String {
         let mut s = String::new();
         self.export_internal(&mut s);
@@ -107,16 +109,44 @@ impl<'a> ToC for CExpr<'a> {
         use self::CExpr::*;
 
         match self {
-            BinOp { op, left, right } => {
-                export_helper!(s, chr '(', exp left, chr ')', str op, chr '(', exp right, chr ')')
-            }
-            PreUnOp { op, ex } => export_helper!(s, chr '(', exp ex, chr ')', str op),
-            PostUnOp { op, ex } => export_helper!(s, str op, chr '(', exp ex, chr ')'),
-            ArrIndexOp { index, expr } => {
-                export_helper!(s, chr '(', exp expr, str ")[", exp index, chr ')')
-            }
+            BinOp { op, left, right } => export_helper!(
+                    s,
+                    chr '(',
+                    exp left,
+                    chr ')',
+                    str op,
+                    chr '(',
+                    exp right,
+                    chr ')'
+                ),
+            PreUnOp { op, ex } => export_helper!(
+                    s,
+                    chr '(',
+                    exp ex,
+                    chr ')',
+                    str op
+                ),
+            PostUnOp { op, ex } => export_helper!(
+                    s,
+                    str op,
+                    chr '(',
+                    exp ex,
+                    chr ')'
+                ),
+            ArrIndexOp { index, expr } => export_helper!(
+                    s,
+                    chr '(',
+                    exp expr,
+                    str ")[",
+                    exp index,
+                    chr ')'
+                ),
             FunCallOp { expr, ands } => {
-                export_helper!(s, chr '(', exp expr, str ")(");
+                export_helper!(s,
+                               chr '(',
+                               exp expr,
+                               str ")("
+                );
 
                 let mut it = ands.iter();
 
@@ -131,8 +161,20 @@ impl<'a> ToC for CExpr<'a> {
 
                 export_helper!(s, chr ')');
             }
-            Cast { ex, typ } => export_helper!(s, chr '(', exp typ , str ")(", exp ex, chr ')'),
-            Lit(lit) => export_helper!(s, chr '(', str lit, chr ')'),
+            Cast { ex, typ } => export_helper!(
+                    s,
+                    chr '(',
+                    exp typ,
+                    str ")(",
+                    exp ex,
+                    chr ')'
+                ),
+            Lit(lit) => export_helper!(
+                    s,
+                    chr '(',
+                    str lit,
+                    chr ')'
+                ),
         }
     }
 }
@@ -154,15 +196,13 @@ impl<'a> CType<'a> {
             gen = match typ_o {
                 Ptr(..) => format!("*{}", gen),
                 Arr(_, len) => format!("({})[{}]", gen, len),
-                Int {size, sign} => {
-                    let name = format!("{}int{}_t",
-                                       if *sign { "u" } else { "" },
-                                       size);
+                Int { size, sign } => {
+                    let name = format!("{}int{}_t", if *sign { "u" } else { "" }, size);
                     format!("{} {}", name, gen)
-                },
+                }
                 Struct(name) => format!("struct {} {}", name, gen),
                 Union(name) => format!("union {} {}", name, gen),
-                Void => "void".to_owned(),
+                Void => format!("void {}", gen),
             };
 
             match typ_o {
@@ -181,11 +221,42 @@ impl<'a> ToC for CStmt<'a> {
         use self::CStmt::*;
 
         match self {
-            IF {cond, body} => export_helper!(s, str "if (", exp cond, chr ')', exp body),
-            While {cond, body} => export_helper!(s, str "while (", exp cond, chr ')', exp body),
-            For {init, test, updt, body} => export_helper!(s, str "for (", exp init, chr ';', exp test, chr ';', exp updt, chr ')', exp body),
-            Block(body) => export_helper!(s, chr '{', vec body, chr '}'),
-            Expr(body) => export_helper!(s, exp body, chr ';'),
+            IF { cond, body } => export_helper!(
+                s,
+                str "if (",
+                exp cond,
+                chr ')',
+                exp body
+            ),
+            While { cond, body } => export_helper!(
+                s,
+                str "while (",
+                exp cond,
+                chr ')',
+                exp body
+            ),
+            For { init, test, updt, body } => export_helper!(
+                s,
+                str "for (",
+                exp init,
+                chr ';',
+                exp test,
+                chr ';',
+                exp updt,
+                chr ')',
+                exp body
+            ),
+            Block(body) => export_helper!(
+                s,
+                chr '{',
+                vec body,
+                chr '}'
+            ),
+            Expr(body) => export_helper!(
+                s,
+                exp body,
+                chr ';'
+            ),
         }
     }
 }
@@ -195,7 +266,7 @@ impl<'a> ToC for CDecl<'a> {
         use self::CDecl::*;
 
         match self {
-            Fun {name, typ, args, body} => {
+            Fun { name, typ, args, body } => {
                 let mut f = String::new();
 
                 f.push_str(&name);
@@ -208,7 +279,7 @@ impl<'a> ToC for CDecl<'a> {
                 }
 
                 for (aname, atyp) in it {
-                    s.push(',');
+                    f.push_str(", ");
                     f.push_str(&atyp.export_with_name(aname));
                 }
 
@@ -216,34 +287,45 @@ impl<'a> ToC for CDecl<'a> {
 
                 s.push_str(&typ.export_with_name(&f));
 
-                export_helper!(s, chr '{', vec body, chr '}');
-            },
-            Struct {name, members} => {
-                export_helper!(s, str "struct ", str name, chr '{');
+                export_helper!(s,
+                               chr '{',
+                               vec body,
+                               chr '}'
+                );
+            }
+            Struct { name, members } => {
+                export_helper!(s,
+                               str "struct ",
+                               str name,
+                               chr '{'
+                );
 
                 for (aname, atyp) in members {
                     s.push_str(&atyp.export_with_name(aname));
                     s.push(';');
                 }
                 s.push(';');
-            },
-            Union {name, members} => {
-                export_helper!(s, str "union ", str name, chr '{');
+            }
+            Union { name, members } => {
+                export_helper!(s,
+                               str "union ",
+                               str name,
+                               chr '{'
+                );
 
                 for (aname, atyp) in members {
                     s.push_str(&atyp.export_with_name(aname));
                     s.push(';');
                 }
                 s.push(';');
-            },
-            Var {name, typ, init} => {
+            }
+            Var { name, typ, init } => {
                 s.push_str(&typ.export_with_name(name));
                 if let Some(init) = init {
                     export_helper!(s, exp init);
                 }
                 s.push(';');
             }
-
         }
     }
 }

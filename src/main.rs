@@ -25,7 +25,7 @@ fn main() {
 
     println!("{}", fn_.export());
 
-    let exp = "((lambda () (y) (x)))";
+    let exp = "(lambda (x) (* x (fac (- x 1))))";
     if let nom::IResult::Done(_, r) = parse::parse_exp(exp) {
         println!("{:#?}", r);
 
@@ -48,6 +48,17 @@ fn main() {
 
         let (root, lambdas) = codegen::extract_lambdas(r);
         println!("{:#?}\n\n{:#?}", root, lambdas);
+
+        let compiled_lambdas = codegen::lambda_codegen(&lambdas.values().map(|l| l.clone()).collect::<Vec<_>>());
+
+        println!("{:#?}", compiled_lambdas);
+
+        for lam in &compiled_lambdas {
+            println!("{}", lam.export());
+        }
+
+        let compiled_root = codegen::codegen(&root);
+        println!("{}", compiled_root.export());
 
     }
 }

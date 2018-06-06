@@ -140,6 +140,7 @@ pub fn expand_lam_body<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
     }
 }
 
+/// Apply the cps transformation with a continuation expression
 pub fn cps_transform_cont<'a>(
     expr: LExpr<'a>,
     cont: LExpr<'a>,
@@ -159,6 +160,12 @@ pub fn cps_transform_cont<'a>(
                 box LExpr::AppOne(box cont.clone(), box LExpr::Var(rv_var.clone())),
             );
 
+            // The expression:
+            // (rator rand)
+            // Is transformed into:
+            // (T rator '(lambda (rator_var)
+            //             (T rand '(lambda (rand_var)
+            //                        (rator_var rand_var cont)))))
             cps_transform_cont(
                 operator,
                 LExpr::LamOneOne(
@@ -184,6 +191,7 @@ pub fn cps_transform_cont<'a>(
     }
 }
 
+/// Apply the cps transformation
 pub fn cps_transform<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
     match expr {
         LExpr::LamOneOne(arg, box expr) => {
