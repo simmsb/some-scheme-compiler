@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    borrow::Cow,
+};
 use cdsl::{CStmt, CExpr, CDecl, CType};
 use nodes::{LExpr, Env, LExEnv};
 // use transform::TransformContext;
@@ -93,7 +96,7 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
                 id: id,
             }
         },
-        _ => panic!("Node of type {:?} should not exist here.", node),
+        _ => unreachable!("Node of type {:?} should not exist here.", node),
     }
 }
 
@@ -157,21 +160,48 @@ pub fn extract_lambdas<'a>(node: LExEnv<'a>) -> (LExEnv<'a>, HashMap<usize, LExE
 }
 
 
-// pub fn lambda_codegen<'a>(lams: Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
-//     use self::LExEnv::*;
+pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
+    use self::LExEnv::*;
 
-//     match self {
-//         Lam { arg, box expr, env, id } => {
-//             let name = format!("lambda_{}", id);
+    lams.iter().map(
+        |lam| match lam {
+            Lam { arg, box expr, env: _, id } => {
+                let name = format!("lambda_{}", id);
 
-//             let args = ...;
+                let args = vec![(arg.clone(), CType::Ptr(box CType::Struct(Cow::Borrowed("object"))))];
+                let body = codegen(&expr);
 
-//             let stmt = CDecl::Fun {
-//                 name: Cow::Owned(name),
-//                 typ: box CType::Void,
-//                 args: ...,
-//                 body: ...,
-//             }
-//         }
-//     }
-// }
+                CDecl::Fun {
+                    name: Cow::Owned(name),
+                    typ: box CType::Void,
+                    args: args,
+                    body: body,
+                }
+            },
+            LamCont { arg, cont, box expr, env: _, id } => {
+                let name = format!("lambda_{}", id);
+
+                let args = vec![
+                    (arg.clone(),  CType::Ptr(box CType::Struct(Cow::Borrowed("object")))),
+                    (cont.clone(), CType::Ptr(box CType::Struct(Cow::Borrowed("object")))),
+                ];
+
+                let body = codegen(&expr);
+
+                CDecl::Fun {
+                    name: Cow::Owned(name),
+                    typ: box CType::Void,
+                    args: args,
+                    body: body,
+                }
+            },
+            _ => unreachable!("Should not exist here"),
+        }
+    ).collect()
+}
+
+
+pub fn codegen<'a>(expr: &LExEnv<'a>) -> Vec<CStmt<'a>> {
+    // TODO: me
+    unimplemented!()
+}

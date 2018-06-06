@@ -16,11 +16,11 @@ use std::borrow::Cow;
 fn main() {
     let fn_ = CDecl::Fun {
         name: Cow::Borrowed("lol"),
-        typ: box CType::Ptr { to: box CType::Arr { of: box CType::Int { size: 8, sign: false},
-                                                   len: 10}},
+        typ: box CType::Ptr(box CType::Arr(box CType::Int { size: 8, sign: false},
+                                           10)),
         args: vec![(Cow::Borrowed("a1"),
-                    box CType::Ptr { to: box CType::Int { size: 16, sign: false} })],
-        body: vec![CStmt::Expr( box CExpr::Lit(Cow::Borrowed("lol")))],
+                    CType::Ptr(box CType::Int { size: 16, sign: false} ))],
+        body: vec![CStmt::Expr(CExpr::Lit(Cow::Borrowed("lol")))],
     };
 
     println!("{}", fn_.export());

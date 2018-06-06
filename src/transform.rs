@@ -91,7 +91,7 @@ pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
             }
         }
         Var(..) => expr,
-        _ => panic!("Shouldn't be touching this yet"),
+        _ => unreachable!("Shouldn't be touching this yet"),
     }
 }
 
@@ -180,7 +180,7 @@ pub fn cps_transform_cont<'a>(
             )
         }
         LExpr::AppOneCont(..) => expr,
-        LExpr::Lam(..) | LExpr::App(..) | LExpr::LamOne(..) => panic!("These shouldn't exist here"),
+        LExpr::Lam(..) | LExpr::App(..) | LExpr::LamOne(..) => unreachable!("These shouldn't exist here"),
     }
 }
 

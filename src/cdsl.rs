@@ -33,47 +33,47 @@ pub enum CExpr<'a> {
 }
 
 pub enum CType<'a> {
-    Ptr { to: Box<CType<'a>> },
-    Arr { of: Box<CType<'a>>, len: usize },
+    Ptr(Box<CType<'a>>),
+    Arr(Box<CType<'a>>, usize),
     Int { size: usize, sign: bool },
-    Struct { name: Cow<'a, str> },
-    Union { name: Cow<'a, str> },
+    Struct(Cow<'a, str>),
+    Union(Cow<'a, str>),
     Void,
 }
 
 pub enum CStmt<'a> {
     IF {
-        cond: Box<CExpr<'a>>,
+        cond: CExpr<'a>,
         body: Box<CStmt<'a>>,
     },
     While {
-        cond: Box<CExpr<'a>>,
+        cond: CExpr<'a>,
         body: Box<CStmt<'a>>,
     },
     For {
-        init: Box<CExpr<'a>>,
-        test: Box<CExpr<'a>>,
-        updt: Box<CExpr<'a>>,
+        init: CExpr<'a>,
+        test: CExpr<'a>,
+        updt: CExpr<'a>,
         body: Box<CStmt<'a>>,
     },
     Block(Vec<CStmt<'a>>),
-    Expr(Box<CExpr<'a>>),
+    Expr(CExpr<'a>),
 }
 
 pub enum CDecl<'a> {
     Fun {
         name: Cow<'a, str>,
         typ: Box<CType<'a>>,
-        args: Vec<(Cow<'a, str>, Box<CType<'a>>)>,
+        args: Vec<(Cow<'a, str>, CType<'a>)>,
         body: Vec<CStmt<'a>>,
     },
     Struct {
         name: Cow<'a, str>,
-        members: Vec<(Cow<'a, str>, Box<CType<'a>>)>,
+        members: Vec<(Cow<'a, str>, CType<'a>)>,
     },
     Union {
         name: Cow<'a, str>,
-        members: Vec<(Cow<'a, str>, Box<CType<'a>>)>,
+        members: Vec<(Cow<'a, str>, CType<'a>)>,
     },
     Var {
         name: Cow<'a, str>,
@@ -152,22 +152,22 @@ impl<'a> CType<'a> {
 
         while let Some(typ_o) = typ.take() {
             gen = match typ_o {
-                Ptr {..} => format!("*{}", gen),
-                Arr {of: _, len} => format!("({})[{}]", gen, len),
+                Ptr(..) => format!("*{}", gen),
+                Arr(_, len) => format!("({})[{}]", gen, len),
                 Int {size, sign} => {
                     let name = format!("{}int{}_t",
                                        if *sign { "u" } else { "" },
                                        size);
                     format!("{} {}", name, gen)
                 },
-                Struct {name} => format!("struct {} {}", name, gen),
-                Union {name} => format!("union {} {}", name, gen),
+                Struct(name) => format!("struct {} {}", name, gen),
+                Union(name) => format!("union {} {}", name, gen),
                 Void => "void".to_owned(),
             };
 
             match typ_o {
-                Ptr {to} => typ = Some(to),
-                Arr {of, ..} => typ = Some(of),
+                Ptr(to) => typ = Some(to),
+                Arr(of, ..) => typ = Some(of),
                 _ => (),
             };
         }
