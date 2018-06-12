@@ -1,10 +1,10 @@
-#include <stdlib.h>
-#include <stdbool.h>
-
 #ifndef SOMESCHEME_H
 #define SOMESCHEME_H
 
-#define RUNTIME_ERROR(S) printf("Runtime Error: %s\n", (S))
+#include <stdlib.h>
+#include <stdbool.h>
+
+#define RUNTIME_ERROR(S) do { fprintf(stderr, "Runtime Error (%s:%d): %s\n", __func__, __LINE__, (S)); exit(1) } while (0)
 
 enum object_tag {
     CLOSURE = 0,
@@ -41,15 +41,10 @@ struct thunk {
     struct closure closr;
     union {
         struct {
-            struct object *rator;
-            size_t rand_id;
             struct object *rand;
         } one;
         struct {
-            struct object *rator;
-            size_t rand_id;
             struct object *rand;
-            size_t cont_id;
             struct object *cont;
         } two;
     };
@@ -58,7 +53,7 @@ struct thunk {
 void call_closure_one(struct object *, size_t, struct object *);
 void call_closure_two(struct object *, size_t, struct object *, size_t, struct object *);
 void halt_func(struct object *, struct env_elem *);
-void scheme_init(void);
+void scheme_start(struct thunk *);
 void run_gc(struct thunk *);
 
 #endif /* SOMESCHEME_H */

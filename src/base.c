@@ -3,11 +3,13 @@
 #include <string.h>
 #include <stdbool.h>
 #include <sys/resource.h>
+#include <setjmp.h>
 
 #include "base.h"
 
 static bool stack_check(void);
 
+static void *current_thunk;
 static void *stack_initial;
 
 extern struct env_table_entry env_table[];
@@ -42,7 +44,7 @@ void call_closure_one(struct object *rator, size_t rand_id, struct object *rand)
         struct thunk thnk = {
             .size = false,
             .closr = *closure, // copy the closure
-            .one = {rator, rand_id, rand},
+            .one = {rand},
         };
         struct thunk *thnk_heap = malloc(sizeof(struct thunk));
         *thnk_heap = thnk;
@@ -71,7 +73,7 @@ void call_closure_two(struct object *rator, size_t rand_id, struct object *rand,
         struct thunk thnk = {
             .size = true,
             .closr = *closure, // copy the closure
-            .two = {rator, rand_id, rand, cont_id, cont},
+            .two = {rand, cont},
         };
         struct thunk *thnk_heap = malloc(sizeof(struct thunk));
         *thnk_heap = thnk;
@@ -116,8 +118,30 @@ static bool stack_check(void) {
 }
 
 
-void scheme_init(void) {
+void scheme_start(struct thunk *initial_thunk) {
     stack_initial = stack_ptr();
+    current_thunk = initial_thunk;
+
+    // This is our trampoline, when we come back from a longjmp a different
+    // current_thunk will be set and we will just trampoline into the new
+    // thunk
+    setjmp();
+
+    if (!current_thunk->size) {
+        current_thunk->closr.fn_1(
+            current_thunk->one.rand,
+            current_thunk->closr.env
+        );
+    } else {
+        current_thunk->closr.fn_2(
+            current_thunk->two.rand,
+            current_thunk->two.cont,
+            current_thunk->closr.env
+        );
+    }
+
+    RUNTIME_ERROR("Control flow returned from trampoline function.");
+
 }
 
 
