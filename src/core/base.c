@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
 #include <sys/resource.h>
@@ -9,8 +10,9 @@
 
 static bool stack_check(void);
 
-static void *current_thunk;
+static struct thunk *current_thunk;
 static void *stack_initial;
+static jmp_buf setjmp_env_buf;
 
 extern struct env_table_entry env_table[];
 
@@ -114,7 +116,7 @@ static void *stack_ptr(void) {
  */
 static bool stack_check(void) {
     static size_t stack_buffer = 1024 * 32;
-    return stack_ptr() > (stack_initial - get_stack_limit() - stack_buffer);
+    return (uintptr_t)stack_ptr() > (uintptr_t)(stack_initial - get_stack_limit() - stack_buffer);
 }
 
 
@@ -125,7 +127,7 @@ void scheme_start(struct thunk *initial_thunk) {
     // This is our trampoline, when we come back from a longjmp a different
     // current_thunk will be set and we will just trampoline into the new
     // thunk
-    setjmp();
+    setjmp(setjmp_env_buf);
 
     if (!current_thunk->size) {
         current_thunk->closr.fn_1(
