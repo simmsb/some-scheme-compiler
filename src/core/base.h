@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include "gc.h"
+
 #define RUNTIME_ERROR(S) do { fprintf(stderr, "Runtime Error (%s:%d): %s\n", __func__, __LINE__, (S)); exit(1); } while (0)
 
 enum object_tag {
@@ -12,40 +14,42 @@ enum object_tag {
 
 struct object {
     enum object_tag tag;
+    enum mark_type mark;
+    bool on_stack;
 };
 
 struct env_elem {
-    size_t ident_id;
-    struct object *val;    // shared
-    struct env_elem *next; // owned by env_elem
+    const size_t ident_id;
+    struct object * const val;    // shared
+    struct env_elem * const next; // owned by env_elem
 };
 
 struct closure {
     struct object base;
-    bool size; // false = 1 arg, true = 2 arg
-    size_t env_id;
+    const bool size; // false = 1 arg, true = 2 arg
+    const size_t env_id;
     union {
-        void (*fn_1)(struct object *, struct env_elem *);
-        void (*fn_2)(struct object *, struct object *, struct env_elem *);
+        void (*const fn_1)(struct object *, struct env_elem *);
+        void (*const fn_2)(struct object *, struct object *, struct env_elem *);
     };
     struct env_elem *env;
 };
 
 struct env_table_entry {
-    size_t env_id;
-    size_t *var_ids;
+    const size_t env_id;
+    size_t * const var_ids;
 };
 
 struct thunk {
-    bool size;
+    const bool size;
     struct closure closr;
     union {
         struct {
-            struct object *rand;
+            struct object * const rand;
         } one;
         struct {
-            struct object *rand;
-            struct object *cont;
+            struct object * const rand;
+            struct object * const cont;
         } two;
     };
 };

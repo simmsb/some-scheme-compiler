@@ -26,7 +26,6 @@ int main() {
         ptr_bst_insert(&tree, (struct ptr_pair){ (void *)i, (void *)(100 - i) });
     }
 
-
     for (size_t i=0; i<100; i++) {
         printf("idx: %ld val: %ld\n", i, (intptr_t)(void *)ptr_bst_get(&tree, (void *)i));
     }
