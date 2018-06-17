@@ -17,12 +17,6 @@ struct ptr_toupdate_pair {
 
 DEFINE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair)
 
-enum gc_mark_type {
-    WHITE = 0,
-    GREY,
-    BLACK
-};
-
 struct gc_context {
     // variables that are active
     struct vector_gc_env_active active_vars;
@@ -71,7 +65,8 @@ void mark_env(struct object *, struct gc_context *);
 
 
 struct gc_context gc_make_context(void);
-void gc_run(struct gc_context *, struct thunk *);
+void gc_minor(struct gc_context *, struct thunk *);
+void gc_major(struct gc_context *, struct thunk *);
 struct object *gc_toheap(struct gc_context *, struct object *);
 
 #endif // SOMESCHEME_GC_H

@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "gc.h"
-
 #define RUNTIME_ERROR(S) do { fprintf(stderr, "Runtime Error (%s:%d): %s\n", __func__, __LINE__, (S)); exit(1); } while (0)
 
 enum closure_size {
@@ -18,6 +16,12 @@ enum object_tag {
     ENV,
 };
 
+enum gc_mark_type {
+    WHITE = 0,
+    GREY,
+    BLACK
+};
+
 struct object {
     enum object_tag tag;
     enum gc_mark_type mark;
@@ -27,8 +31,8 @@ struct object {
 struct env_elem {
     struct object base;
     const size_t ident_id;
-    struct object * const val;    // shared
-    struct env_elem * const next; // owned by env_elem
+    struct object * val;    // shared
+    struct env_elem * next; // owned by env_elem
 };
 
 struct closure {
@@ -51,11 +55,11 @@ struct thunk {
     struct closure *closr;
     union {
         struct {
-            struct object * const rand;
+            struct object *rand;
         } one;
         struct {
-            struct object * const rand;
-            struct object * const cont;
+            struct object *rand;
+            struct object *cont;
         } two;
     };
 };

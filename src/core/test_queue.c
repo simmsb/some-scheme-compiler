@@ -17,9 +17,9 @@ int main() {
     for (int i = 0; i < 100; i++) {
         assert(queue_int_len(&queue) > 0);
         int result = queue_int_dequeue(&queue);
-        printf("dequeued %d expecting %d\n", result, i);
+        // printf("dequeued %d expecting %d\n", result, i);
         assert(result == i);
     }
 
-    puts("yeah we're good");
+    puts("yeah we're good (test_queue)");
 }

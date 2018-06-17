@@ -70,3 +70,9 @@ void *ptr_bst_get(struct ptr_bst *bst, void *ptr) {
 void ptr_bst_free(struct ptr_bst bst) {
     vector_ptr_pair_bst_free(&bst.vec);
 }
+
+void ptr_bst_clear(struct ptr_bst *bst) {
+    // to clear the tree, just set the vector to zero such
+    // that the next set will write to index 0, or get will return NULL
+    bst->vec.length = 0;
+}

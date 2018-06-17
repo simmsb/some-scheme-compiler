@@ -98,6 +98,8 @@ static void gc_mark_obj(struct gc_context *ctx, struct object *obj) {
 
 // Moves all live objects on the stack over to the heap
 struct object *gc_toheap(struct gc_context *ctx, struct object *obj) {
+    // if we've already copied this object,
+    // we know that anything it points to must also be sorted
     struct object *maybe_copied = ptr_bst_get(&ctx->updated_pointers, obj);
     if (maybe_copied != NULL) {
         return maybe_copied;
@@ -105,16 +107,33 @@ struct object *gc_toheap(struct gc_context *ctx, struct object *obj) {
 
     struct object *new_obj = gc_func_map[obj->tag].toheap(obj, ctx);
 
-    if (obj->on_stack) {
-        struct ptr_pair pair = {.old = obj, .new = new_obj};
-
-        ptr_bst_insert(&ctx->updated_pointers, pair);
-    }
+    // Add it to the updated tree
+    // Even if it was on the heap already we still insert
+    // since we then won't process child objects further
+    struct ptr_pair pair = {.old = obj, .new = new_obj};
+    ptr_bst_insert(&ctx->updated_pointers, pair);
 
     return new_obj;
 }
 
-void gc_run(struct gc_context *ctx, struct thunk *thnk) {
+
+// The minor gc, moves all stack objects to the heap
+void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
+
+    // initially mark the closure and it's arguments to be applied
+    thnk->closr = (struct closure *)gc_toheap(ctx, (struct object *)thnk->closr);
+
+    switch (thnk->closr->size) {
+        case CLOSURE_ONE:
+            thnk->one.rand = gc_toheap(ctx, thnk->one.rand);
+            break;
+        case CLOSURE_TWO:
+            thnk->two.rand = gc_toheap(ctx, thnk->two.rand);
+            thnk->two.cont = gc_toheap(ctx, thnk->two.cont);
+            break;
+    }
+
+    // work through each pointer that needs to be updated
     while (queue_ptr_toupdate_pair_len(&ctx->pointers_toupdate) > 0) {
         struct ptr_toupdate_pair to_update = queue_ptr_toupdate_pair_dequeue(&ctx->pointers_toupdate);
         struct object *maybe_copied = ptr_bst_get(&ctx->updated_pointers, to_update.on_stack);
@@ -128,8 +147,12 @@ void gc_run(struct gc_context *ctx, struct thunk *thnk) {
             *to_update.toupdate = on_heap;
         }
     }
+}
 
 
+// The major gc, collects objects on the heap
+// TODO: decide if this will fuck up if used when objects are still on the stack
+void gc_major(struct gc_context *ctx, struct thunk *thnk) {
     gc_mark_obj(ctx, &thnk->closr->base);
 
     switch (thnk->closr->size) {
@@ -146,6 +169,4 @@ void gc_run(struct gc_context *ctx, struct thunk *thnk) {
         struct object *next_obj = queue_gc_grey_nodes_dequeue(&ctx->grey_nodes);
         gc_mark_obj(ctx, next_obj);
     }
-
-
 }

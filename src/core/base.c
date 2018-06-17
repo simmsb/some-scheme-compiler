@@ -7,6 +7,7 @@
 #include <sys/resource.h>
 
 #include "base.h"
+#include "gc.h"
 
 static bool stack_check(void);
 
@@ -155,6 +156,8 @@ void run_minor_gc(struct thunk *thnk) {
     // var_ids array from the env_table for each closure we see, and also making
     // sure that we do a gc of each env object such that closures stored inside
     // env_vars have their environemnts preserved
+    struct gc_context ctx = gc_make_context();
+    gc_minor(&ctx, thnk);
 }
 
 struct object object_base_new(enum object_tag tag) {
@@ -163,4 +166,9 @@ struct object object_base_new(enum object_tag tag) {
         .mark = WHITE,
         .on_stack = true,
     };
+}
+
+
+int main(int argc, char **argv) {
+    printf("yup\n");
 }
