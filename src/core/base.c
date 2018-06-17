@@ -20,8 +20,10 @@ extern struct env_table_entry env_table[];
     do {                                                                       \
         struct env_elem *new_env = alloca(sizeof(struct env_elem));            \
         memcpy(new_env,                                                        \
-               &(struct env_elem){                                             \
-                   .ident_id = (IDENT), .val = (VAL), .next = (HEAD)},         \
+               &(struct env_elem){.base = object_base_new(ENV),                \
+                                  .ident_id = (IDENT),                         \
+                                  .val = (VAL),                                \
+                                  .next = (HEAD)},                             \
                sizeof(struct env_elem));                                       \
                                                                                \
         (HEAD) = new_env;                                                      \
@@ -35,7 +37,7 @@ void call_closure_one(struct object *rator, size_t rand_id,
 
     struct closure *closure = (struct closure *)rator;
 
-    if (closure->size != false) {
+    if (closure->size == CLOSURE_TWO) {
         RUNTIME_ERROR("Called a closure that takes two args with one arg");
     }
 
@@ -45,13 +47,12 @@ void call_closure_one(struct object *rator, size_t rand_id,
     } else {
         // TODO, move to our own gc allocator?
         struct thunk thnk = {
-            .size = false,
-            .closr = *closure, // copy the closure
+            .closr = closure,
             .one = {rand},
         };
         struct thunk *thnk_heap = malloc(sizeof(struct thunk));
         memcpy(thnk_heap, &thnk, sizeof(struct thunk));
-        run_gc(thnk_heap);
+        run_minor_gc(thnk_heap);
     }
 }
 
@@ -63,7 +64,7 @@ void call_closure_two(struct object *rator, size_t rand_id, struct object *rand,
 
     struct closure *closure = (struct closure *)rator;
 
-    if (closure->size != true) {
+    if (closure->size != CLOSURE_ONE) {
         RUNTIME_ERROR("Called a closure that takes two args with one arg");
     }
 
@@ -75,13 +76,12 @@ void call_closure_two(struct object *rator, size_t rand_id, struct object *rand,
     } else {
         // TODO, move to our own gc allocator?
         struct thunk thnk = {
-            .size = true,
-            .closr = *closure, // copy the closure
+            .closr = closure, // copy the closure
             .two = {rand, cont},
         };
         struct thunk *thnk_heap = malloc(sizeof(struct thunk));
         memcpy(thnk_heap, &thnk, sizeof(struct thunk));
-        run_gc(thnk_heap);
+        run_minor_gc(thnk_heap);
     }
 }
 
@@ -125,19 +125,19 @@ void scheme_start(struct thunk *initial_thunk) {
     // thunk
     setjmp(setjmp_env_buf);
 
-    if (!current_thunk->size) {
-        current_thunk->closr.fn_1(current_thunk->one.rand,
-                                  current_thunk->closr.env);
+    if (!current_thunk->closr->size) {
+        current_thunk->closr->fn_1(current_thunk->one.rand,
+                                   current_thunk->closr->env);
     } else {
-        current_thunk->closr.fn_2(current_thunk->two.rand,
-                                  current_thunk->two.cont,
-                                  current_thunk->closr.env);
+        current_thunk->closr->fn_2(current_thunk->two.rand,
+                                   current_thunk->two.cont,
+                                   current_thunk->closr->env);
     }
 
     RUNTIME_ERROR("Control flow returned from trampoline function.");
 }
 
-void run_gc(struct thunk *thnk) {
+void run_minor_gc(struct thunk *thnk) {
     // Minor gc happens here
     // Peek into the thunk and gc all live objects
     // For each object type run it's relevant minor-gc routine
@@ -155,4 +155,12 @@ void run_gc(struct thunk *thnk) {
     // var_ids array from the env_table for each closure we see, and also making
     // sure that we do a gc of each env object such that closures stored inside
     // env_vars have their environemnts preserved
+}
+
+struct object object_base_new(enum object_tag tag) {
+    return (struct object){
+        .tag = tag,
+        .mark = WHITE,
+        .on_stack = true,
+    };
 }

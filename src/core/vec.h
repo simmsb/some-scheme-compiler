@@ -41,13 +41,12 @@
     }                                                                          \
     size_t vector_##TNAME##_push(struct vector_##TNAME *vec, TYPE elem) {      \
         if (vec->length >= vec->cap) {                                         \
-            size_t new_len = (vec->cap + (vec->cap >> 2));                     \
+            size_t new_len = 1 + vec->cap + (vec->cap >> 2);                   \
             vec->data = realloc(vec->data, new_len * sizeof(TYPE));            \
             vec->cap = new_len;                                                \
         }                                                                      \
         size_t inserted_idx = vec->length;                                     \
-        vec->data[vec->length] = elem;                                         \
-        vec->length++;                                                         \
+        vec->data[vec->length++] = elem;                                       \
         return inserted_idx;                                                   \
     }                                                                          \
     TYPE vector_##TNAME##_index(struct vector_##TNAME *vec, size_t idx) {      \
