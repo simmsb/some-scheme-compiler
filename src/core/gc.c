@@ -7,7 +7,6 @@
 #include "gc.h"
 
 
-MAKE_VECTOR(size_t, gc_env_active)
 MAKE_QUEUE(struct object *, gc_grey_nodes)
 MAKE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair)
 
@@ -47,10 +46,11 @@ struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
 }
 
 void mark_closure(struct object *obj, struct gc_context *ctx) {
-    // TODO: get environment marking working
     struct closure *clos = (struct closure *)obj;
 
     obj->mark = BLACK;
+
+    // TODO: here traverse the env
 
     queue_gc_grey_nodes_enqueue(&ctx->grey_nodes, (struct object *)clos->env);
 }
@@ -82,7 +82,6 @@ void mark_env(struct object *obj, struct gc_context *ctx) {
 
 struct gc_context gc_make_context(void) {
     return (struct gc_context){
-        .active_vars = vector_gc_env_active_new(10),
         .grey_nodes = queue_gc_grey_nodes_new(10),
         .pointers_toupdate = queue_ptr_toupdate_pair_new(10),
         .updated_pointers = ptr_bst_new(),
@@ -169,4 +168,11 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
         struct object *next_obj = queue_gc_grey_nodes_dequeue(&ctx->grey_nodes);
         gc_mark_obj(ctx, next_obj);
     }
+
+
+    // TODO: rethink how we manage the environment
+    // We should probably have a routine in closures that causes them to traverse their env
+    // marking nodes that should be kept as black (and what they reference as grey),
+    // and unlinking nodes that should not be kept, marking them white
+    // (but not touching the data referenced by such env node to be removed)
 }

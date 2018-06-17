@@ -6,7 +6,6 @@
 #include "tree.h"
 #include "queue.h"
 
-DEFINE_VECTOR(size_t, gc_env_active)
 DEFINE_QUEUE(struct object *, gc_grey_nodes)
 
 
@@ -18,9 +17,6 @@ struct ptr_toupdate_pair {
 DEFINE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair)
 
 struct gc_context {
-    // variables that are active
-    struct vector_gc_env_active active_vars;
-
     // nodes that are marked grey
     struct queue_gc_grey_nodes grey_nodes;
 

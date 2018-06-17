@@ -15,8 +15,6 @@ static struct thunk *current_thunk;
 static void *stack_initial;
 static jmp_buf setjmp_env_buf;
 
-extern struct env_table_entry env_table[];
-
 #define ADD_ENV(IDENT, VAL, HEAD)                                              \
     do {                                                                       \
         struct env_elem *new_env = alloca(sizeof(struct env_elem));            \
@@ -139,23 +137,6 @@ void scheme_start(struct thunk *initial_thunk) {
 }
 
 void run_minor_gc(struct thunk *thnk) {
-    // Minor gc happens here
-    // Peek into the thunk and gc all live objects
-    // For each object type run it's relevant minor-gc routine
-    // Where we pass an array of already collected objects
-    // (a list of old pointer to new pointer tuples)
-    // and each time we see an unseen before pointer we run the gc routine on it
-    // and copy it to heap and add it to the vector of collected objects.
-    // If we see an already copied pointer, just mutate it to the new one.
-    // The end result should be that everything that was alive is now in the
-    // heap. We ofcourse need to check if we have a pointer to heap memory or a
-    // pointer to stack memory We should do this by having a table of pointers
-    // that are on the heap. If we see a pointer that is not on the heap then it
-    // must be a stack pointer (Don't do any pointer range magick) We should
-    // also create a union of all live environment vars, done by adding each
-    // var_ids array from the env_table for each closure we see, and also making
-    // sure that we do a gc of each env object such that closures stored inside
-    // env_vars have their environemnts preserved
     struct gc_context ctx = gc_make_context();
     gc_minor(&ctx, thnk);
 }

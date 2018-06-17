@@ -48,8 +48,13 @@ struct closure {
 
 struct env_table_entry {
     const size_t env_id;
+    const size_t num_ids;
     size_t * const var_ids;
 };
+
+
+// The map of env ids to an array of var ids
+extern struct env_table_entry env_table[];
 
 struct thunk {
     struct closure *closr;
