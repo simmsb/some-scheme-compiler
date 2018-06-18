@@ -8,6 +8,9 @@
 
 #include "base.h"
 #include "gc.h"
+#include "vec.h"
+
+MAKE_VECTOR(struct env_elem *, env_elem_nexts)
 
 static bool stack_check(void);
 
@@ -22,10 +25,11 @@ static jmp_buf setjmp_env_buf;
                &(struct env_elem){.base = object_base_new(ENV),                \
                                   .ident_id = (IDENT),                         \
                                   .val = (VAL),                                \
-                                  .next = (HEAD)},                             \
+                                  .prev = (HEAD),                              \
+                                  .nexts = vector_env_elem_nexts_new(0)},      \
                sizeof(struct env_elem));                                       \
                                                                                \
-        (HEAD) = new_env;                                                      \
+        vector_env_elem_nexts_push(&(HEAD)->nexts, new_env);                   \
     } while (0)
 
 void call_closure_one(struct object *rator, size_t rand_id,
@@ -149,7 +153,4 @@ struct object object_base_new(enum object_tag tag) {
     };
 }
 
-
-int main(int argc, char **argv) {
-    printf("yup\n");
-}
+int main(int argc, char **argv) { printf("yup\n"); }

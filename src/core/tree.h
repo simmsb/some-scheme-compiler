@@ -23,7 +23,7 @@ struct ptr_bst {
 struct ptr_bst ptr_bst_new(void);
 void ptr_bst_insert(struct ptr_bst *, struct ptr_pair);
 void *ptr_bst_get(struct ptr_bst *, void *);
-void ptr_bst_free(struct ptr_bst);
+void ptr_bst_free(struct ptr_bst *);
 void ptr_bst_clear(struct ptr_bst *);
 
 #endif /* SOMESCHEME_TREE_H */

@@ -33,7 +33,8 @@
     struct queue_##TNAME queue_##TNAME##_new(size_t);                          \
     void queue_##TNAME##_enqueue(struct queue_##TNAME *, TYPE);                \
     TYPE queue_##TNAME##_dequeue(struct queue_##TNAME *);                      \
-    size_t queue_##TNAME##_len(struct queue_##TNAME *);
+    size_t queue_##TNAME##_len(struct queue_##TNAME *);                        \
+    void queue_##TNAME##_free(struct queue_##TNAME *);
 
 #define MAKE_QUEUE(TYPE, TNAME)                                                \
     struct queue_##TNAME queue_##TNAME##_new(size_t initial) {                 \
@@ -102,6 +103,9 @@
          * len = head + array_len - tail = 1 + 7 - 3 = 5                       \
          */                                                                    \
         return queue->head + queue->len - queue->tail;                         \
+    }                                                                          \
+    void queue_##TNAME##_free(struct queue_##TNAME *queue) {                   \
+        free(queue->data);                                                     \
     }
 
 #endif // SOMESCHEME_QUEUE_H

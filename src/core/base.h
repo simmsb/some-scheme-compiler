@@ -4,7 +4,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include "vec.h"
+
 #define RUNTIME_ERROR(S) do { fprintf(stderr, "Runtime Error (%s:%d): %s\n", __func__, __LINE__, (S)); exit(1); } while (0)
+
+DEFINE_VECTOR(struct env_elem *, env_elem_nexts)
 
 enum closure_size {
     CLOSURE_ONE = 0,
@@ -28,11 +32,16 @@ struct object {
     bool on_stack;
 };
 
+
+// TODO: change this to a tree
+// gc_env_elem_free should thus unlink the node, etc
+// the lhs should be a single pointer, the rhs an array of pointers and a length
 struct env_elem {
     struct object base;
     const size_t ident_id;
-    struct object * val;    // shared
-    struct env_elem * next; // owned by env_elem
+    struct object *val;    // shared
+    struct env_elem *prev;
+    struct vector_env_elem_nexts nexts;
 };
 
 struct closure {
@@ -54,7 +63,7 @@ struct env_table_entry {
 
 
 // The map of env ids to an array of var ids
-extern struct env_table_entry env_table[];
+extern struct env_table_entry global_env_table[];
 
 struct thunk {
     struct closure *closr;

@@ -6,8 +6,8 @@
 #include "tree.h"
 #include "queue.h"
 
+DEFINE_VECTOR(size_t, size_t)
 DEFINE_QUEUE(struct object *, gc_grey_nodes)
-
 
 struct ptr_toupdate_pair {
     struct object **toupdate;
@@ -58,9 +58,11 @@ void mark_closure(struct object *, struct gc_context *);
 
 struct object *toheap_env(struct object *, struct gc_context *);
 void mark_env(struct object *, struct gc_context *);
+void free_env(struct object *);
 
 
 struct gc_context gc_make_context(void);
+void gc_free_context(struct gc_context *);
 void gc_minor(struct gc_context *, struct thunk *);
 void gc_major(struct gc_context *, struct thunk *);
 struct object *gc_toheap(struct gc_context *, struct object *);

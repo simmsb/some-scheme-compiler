@@ -28,7 +28,7 @@ int main() {
         assert((void *)ptr_bst_get(&tree, (void *)i) == (void*)(100 - i));
     }
 
-    ptr_bst_free(tree);
+    ptr_bst_free(&tree);
 
     puts("yeah we're good (test_tree)");
 }

@@ -67,8 +67,8 @@ void *ptr_bst_get(struct ptr_bst *bst, void *ptr) {
 }
 
 
-void ptr_bst_free(struct ptr_bst bst) {
-    vector_ptr_pair_bst_free(&bst.vec);
+void ptr_bst_free(struct ptr_bst *bst) {
+    vector_ptr_pair_bst_free(&bst->vec);
 }
 
 void ptr_bst_clear(struct ptr_bst *bst) {
