@@ -65,6 +65,9 @@ struct env_table_entry {
 // The map of env ids to an array of var ids
 extern struct env_table_entry global_env_table[];
 
+#define NUM_ARGS(...) (sizeof((size_t []){__VA_ARGS__})/sizeof(size_t))
+#define ENV_ENTRY(ID, ...) (struct env_table_entry){ID, NUM_ARGS(__VA_ARGS__), (size_t []){__VA_ARGS__}}
+
 struct thunk {
     struct closure *closr;
     union {

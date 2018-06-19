@@ -128,21 +128,33 @@ void scheme_start(struct thunk *initial_thunk) {
     // thunk
     setjmp(setjmp_env_buf);
 
-    if (!current_thunk->closr->size) {
-        current_thunk->closr->fn_1(current_thunk->one.rand,
-                                   current_thunk->closr->env);
+    if (current_thunk->closr->size == CLOSURE_ONE) {
+        struct closure *closr = current_thunk->closr;
+        struct object *rand = current_thunk->one.rand;
+        struct env_elem *env = current_thunk->closr->env;
+        free(current_thunk);
+        closr->fn_1(rand, env);
     } else {
-        current_thunk->closr->fn_2(current_thunk->two.rand,
-                                   current_thunk->two.cont,
-                                   current_thunk->closr->env);
+        struct closure *closr = current_thunk->closr;
+        struct object *rand = current_thunk->two.rand;
+        struct object *cont = current_thunk->two.cont;
+        struct env_elem *env = current_thunk->closr->env;
+        free(current_thunk);
+        closr->fn_2(rand, cont, env);
     }
 
     RUNTIME_ERROR("Control flow returned from trampoline function.");
 }
 
 void run_minor_gc(struct thunk *thnk) {
+    current_thunk = thnk;
+
     struct gc_context ctx = gc_make_context();
     gc_minor(&ctx, thnk);
+    gc_free_context(&ctx);
+
+    // Jump back to the start
+    longjmp(setjmp_env_buf, 1);
 }
 
 struct object object_base_new(enum object_tag tag) {
@@ -152,5 +164,3 @@ struct object object_base_new(enum object_tag tag) {
         .on_stack = true,
     };
 }
-
-int main(int argc, char **argv) { printf("yup\n"); }

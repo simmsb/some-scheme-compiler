@@ -1,4 +1,4 @@
-TESTS = test_queue test_tree
+TESTS = test_queue test_tree test_base
 
 default: base
 
@@ -20,6 +20,9 @@ test_queue : test_queue.c queue.h
 test_tree : test_tree.c tree.h tree.o
 	cc test_tree.c tree.o -o test_tree
 
+test_base : test_base.c base.h base.o gc.o tree.o
+	cc test_base.c base.o gc.o tree.o -o test_base
+
 .PHONY: clean test
 
 test : $(TESTS)
@@ -34,3 +37,4 @@ clean :
 	-rm -f tree.o
 	-rm -f test_tree
 	-rm -f test_queue
+	-rm -f test_base

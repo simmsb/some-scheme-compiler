@@ -1,8 +1,10 @@
 #ifndef SOMESCHEME_VEC_H
 #define SOMESCHEME_VEC_H
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define RUNTIME_ERROR(S)                                                       \
     do {                                                                       \
@@ -24,7 +26,9 @@
     void vector_##TNAME##_set(struct vector_##TNAME *, TYPE, size_t);          \
     TYPE *vector_##TNAME##_index_ptr(struct vector_##TNAME *, size_t);         \
     void vector_##TNAME##_shrink_to_fit(struct vector_##TNAME *);              \
-    void vector_##TNAME##_free(struct vector_##TNAME *);
+    void vector_##TNAME##_free(struct vector_##TNAME *);                       \
+    void vector_##TNAME##_remove(struct vector_##TNAME *, size_t);             \
+    size_t vector_##TNAME##_indexof(struct vector_##TNAME *, TYPE);
 
 #define MAKE_VECTOR(TYPE, TNAME)                                               \
     struct vector_##TNAME vector_##TNAME##_new(size_t initial) {               \
@@ -72,6 +76,23 @@
         vec->data = realloc(vec->data, vec->length * sizeof(TYPE));            \
         vec->cap = vec->length;                                                \
     }                                                                          \
-    void vector_##TNAME##_free(struct vector_##TNAME *vec) { free(vec->data); }
+    void vector_##TNAME##_free(struct vector_##TNAME *vec) {                   \
+        free(vec->data);                                                       \
+    }                                                                          \
+    void vector_##TNAME##_remove(struct vector_##TNAME *vec, size_t idx) {     \
+        if (idx < 0 || idx >= vec->length) {                                   \
+            RUNTIME_ERROR("Indexing vector out of bounds");                    \
+        }                                                                      \
+        memmove(&vec->data[idx], &vec->data[idx + 1], vec->length - idx - 1);  \
+        vec->length--;                                                         \
+    }                                                                          \
+    size_t vector_##TNAME##_indexof(struct vector_##TNAME *vec, TYPE val) {    \
+        for (size_t i = 0; i < vec->length; i++) {                             \
+            if (memcmp(&vec->data[i], &val, sizeof(TYPE)) == 0) {              \
+                return i;                                                      \
+            }                                                                  \
+        }                                                                      \
+        return vec->length;                                                    \
+    }
 
 #endif /* SOMESCHEME_VEC_H */

@@ -33,13 +33,15 @@ void gc_free_noop(struct object *obj) {
 }
 
 
-static bool maybe_mark_grey(struct object *obj) {
+// Mark an object as grey and add it to the queue of grey nodes 'if' it is not already grey or black
+static bool maybe_mark_grey_and_queue(struct gc_context *ctx, struct object *obj) {
     switch (obj->mark) {
         case BLACK:
         case GREY:
             return false;
         case WHITE:
             obj->mark = GREY;
+            queue_gc_grey_nodes_enqueue(&ctx->grey_nodes, obj);
             return true;
     }
 }
@@ -99,9 +101,7 @@ void mark_closure(struct object *obj, struct gc_context *ctx) {
         env_head->base.mark = BLACK;
     }
 
-    if (maybe_mark_grey(&clos->env->base)) {
-        queue_gc_grey_nodes_enqueue(&ctx->grey_nodes, (struct object *)clos->env);
-    }
+    maybe_mark_grey_and_queue(ctx, &clos->env->base);
 }
 
 
@@ -134,13 +134,9 @@ void mark_env(struct object *obj, struct gc_context *ctx) {
 
     for (size_t i=0; i < env->nexts.length; i++) {
         struct object *env_ptr = (struct object *)vector_env_elem_nexts_index(&env->nexts, i);
-        if (maybe_mark_grey(env_ptr)) {
-            queue_gc_grey_nodes_enqueue(&ctx->grey_nodes, env_ptr);
-        }
+        maybe_mark_grey_and_queue(ctx, env_ptr);
     }
-    if (maybe_mark_grey(env->val)) {
-        queue_gc_grey_nodes_enqueue(&ctx->grey_nodes, env->val);
-    }
+    maybe_mark_grey_and_queue(ctx, env->val);
 }
 
 
@@ -154,13 +150,21 @@ void free_env(struct object *obj) {
     // a -> c
     //  \-> d
 
+    size_t index_in_parent = vector_env_elem_nexts_indexof(&env->prev->nexts, env);
+    if (index_in_parent >= env->prev->nexts.length) {
+        RUNTIME_ERROR("Child environment not a member of it's parent's child array!");
+    }
+
+    // remove ourselves from the array of children in the parent env node
+    vector_env_elem_nexts_remove(&env->prev->nexts, index_in_parent);
+
     for (size_t i=0; i < env->nexts.length; i++) {
         struct env_elem *child_ptr = vector_env_elem_nexts_index(&env->nexts, i);
 
-        // make the node that would be a now reference each of b's children
+        // make the node that would be (a) now reference each of (b)'s children
         vector_env_elem_nexts_push(&env->prev->nexts, child_ptr);
 
-        // make each of b's children reference a
+        // make each of (b)'s children reference (a)
         child_ptr->prev = env->prev;
     }
 
@@ -211,6 +215,8 @@ struct object *gc_toheap(struct gc_context *ctx, struct object *obj) {
 
 
 // The minor gc, moves all stack objects to the heap
+// The parameter 'thnk' is the current thunk holding everything together
+// The thunk should be heap allocated and freed after being called
 void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
 
     // initially mark the closure and it's arguments to be applied
