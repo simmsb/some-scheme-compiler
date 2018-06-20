@@ -17,15 +17,20 @@ static struct gc_data gc_global_data;
 
 // array of gc_funcs for each object type
 static struct gc_funcs gc_func_map[] = {
-    [CLOSURE] = (struct gc_funcs){
+    [OBJ_CLOSURE] = (struct gc_funcs){
         .toheap = toheap_closure,
         .mark = mark_closure,
         .free = gc_free_noop
     },
-    [ENV] = (struct gc_funcs){
+    [OBJ_ENV] = (struct gc_funcs){
         .toheap = toheap_env,
         .mark = mark_env,
-        .free = free_env,
+        .free = free_env
+    },
+    [OBJ_INT] = (struct gc_funcs){
+        .toheap = toheap_int_obj,
+        .mark = gc_mark_noop,
+        .free = gc_free_noop
     },
 };
 
@@ -35,6 +40,11 @@ void gc_free_noop(struct object *obj) {
     (void)obj;
 }
 
+// This does nothing, for objects where marking them should mark them as black and nothing more
+void gc_mark_noop(struct object *obj, struct gc_context *ctx) {
+    (void)obj;
+    (void)ctx;
+}
 
 // Mark an object as grey and add it to the queue of grey nodes 'if' it is not already grey or black
 static bool maybe_mark_grey_and_queue(struct gc_context *ctx, struct object *obj) {
@@ -53,19 +63,19 @@ static bool maybe_mark_grey_and_queue(struct gc_context *ctx, struct object *obj
 struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
     struct closure *clos = (struct closure *)obj;
 
-    if (!obj->on_stack) {
-        return obj;
+    if (obj->on_stack) {
+        struct closure *heap_clos = gc_malloc(sizeof(struct closure));
+        memcpy(heap_clos, obj, sizeof(struct closure));
+        clos = heap_clos;
     }
 
-    struct closure *heap_clos = gc_malloc(sizeof(struct closure));
-    memcpy(heap_clos, obj, sizeof(struct closure));
 
     queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate,
                                     (struct ptr_toupdate_pair){
-                                        (struct object **)&heap_clos->env,
-                                        (struct object *)heap_clos->env});
+                                        (struct object **)&clos->env,
+                                        (struct object *)clos->env});
 
-    return (struct object *)heap_clos;
+    return (struct object *)clos;
 }
 
 
@@ -83,8 +93,6 @@ static bool linear_check_env_id(size_t *var_ids, size_t var_id, size_t num_ids) 
 
 void mark_closure(struct object *obj, struct gc_context *ctx) {
     struct closure *clos = (struct closure *)obj;
-
-    obj->mark = BLACK;
 
     struct env_table_entry env_table = global_env_table[clos->env_id];
 
@@ -109,31 +117,30 @@ void mark_closure(struct object *obj, struct gc_context *ctx) {
 
 
 struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
-    if (!obj->on_stack) {
-        return obj;
-    }
+    struct env_elem *env = (struct env_elem *)obj;
 
-    struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
-    memcpy(heap_env, obj, sizeof(struct env_elem));
+    if (!obj->on_stack) {
+        struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
+        memcpy(heap_env, obj, sizeof(struct env_elem));
+        env = heap_env;
+    }
 
     queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate,
                                     (struct ptr_toupdate_pair){
-                                        (struct object **)&heap_env->val,
-                                        (struct object *)heap_env->val});
+                                        (struct object **)&env->val,
+                                        (struct object *)env->val});
 
     // TODO: update these for the vector
-    for (size_t i=0; i<heap_env->nexts.length; i++) {
-        struct env_elem **env_ptr = vector_env_elem_nexts_index_ptr(&heap_env->nexts, i);
+    for (size_t i=0; i<env->nexts.length; i++) {
+        struct env_elem **env_ptr = vector_env_elem_nexts_index_ptr(&env->nexts, i);
         queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, (struct ptr_toupdate_pair){(struct object **)env_ptr, (struct object *)*env_ptr});
     }
-    return (struct object *)heap_env;
+    return (struct object *)env;
 }
 
 
 void mark_env(struct object *obj, struct gc_context *ctx) {
     struct env_elem *env = (struct env_elem *)obj;
-
-    obj->mark = BLACK;
 
     for (size_t i=0; i < env->nexts.length; i++) {
         struct object *env_ptr = (struct object *)vector_env_elem_nexts_index(&env->nexts, i);
@@ -172,6 +179,19 @@ void free_env(struct object *obj) {
     }
 
     vector_env_elem_nexts_free(&env->nexts);
+}
+
+
+struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
+    struct int_obj *intobj = (struct int_obj *)obj;
+
+    if (!obj->on_stack) {
+        struct int_obj *heap_intobj = gc_malloc(sizeof(struct int_obj));
+        memcpy(heap_intobj, intobj, sizeof(struct int_obj));
+        intobj = heap_intobj;
+    }
+
+    return (struct object *)intobj;
 }
 
 
@@ -243,12 +263,14 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
         struct ptr_toupdate_pair to_update = queue_ptr_toupdate_pair_dequeue(&ctx->pointers_toupdate);
         struct object *maybe_copied = ptr_bst_get(&ctx->updated_pointers, to_update.on_stack);
         if (maybe_copied != NULL) {
-            // we've already updated this pointer, just copy it
+            // we've already updated this pointer, just update the pointer that
+            // needs to be updated
             *to_update.toupdate = maybe_copied;
         } else {
             // we haven't seen this yet, perform a copy and update
             struct object *on_heap = gc_toheap(ctx, to_update.on_stack);
             ptr_bst_insert(&ctx->updated_pointers, (struct ptr_pair){to_update.on_stack, on_heap});
+
             *to_update.toupdate = on_heap;
         }
     }
@@ -281,6 +303,11 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
     for (size_t i=0; i < gc_global_data.nodes.length; i++) {
         struct object **ptr = vector_gc_heap_nodes_index_ptr(&gc_global_data.nodes, i);
         struct object *obj = *ptr;
+
+        if (obj == NULL) {
+            continue;
+        }
+
         if (obj->mark == WHITE) {
 
             // execute this object's free function
@@ -298,6 +325,9 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
         } else if (obj->mark == GREY) {
             // this shouldn't happen, but just incase
             RUNTIME_ERROR("Object was marked grey at time of major GC!");
+        } else {
+            // reset marker now
+            obj->mark = WHITE;
         }
     }
 }

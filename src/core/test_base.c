@@ -8,7 +8,7 @@ struct env_table_entry global_env_table[] = {
 
 int main() {
     struct env_elem env = {
-        .base = object_base_new(ENV),
+        .base = object_base_new(OBJ_ENV),
         .ident_id = 0,
         .val = NULL,
         .prev = NULL,
@@ -17,7 +17,7 @@ int main() {
 
 
     struct closure closr = {
-        .base = object_base_new(CLOSURE),
+        .base = object_base_new(OBJ_CLOSURE),
         .size = CLOSURE_ONE,
         .env_id = 0,
         .fn_1 = halt_func,

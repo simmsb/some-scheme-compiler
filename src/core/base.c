@@ -22,7 +22,7 @@ static jmp_buf setjmp_env_buf;
     do {                                                                       \
         struct env_elem *new_env = alloca(sizeof(struct env_elem));            \
         memcpy(new_env,                                                        \
-               &(struct env_elem){.base = object_base_new(ENV),                \
+               &(struct env_elem){.base = object_base_new(OBJ_ENV),            \
                                   .ident_id = (IDENT),                         \
                                   .val = (VAL),                                \
                                   .prev = (HEAD),                              \
@@ -123,6 +123,8 @@ void scheme_start(struct thunk *initial_thunk) {
     stack_initial = stack_ptr();
     current_thunk = initial_thunk;
 
+    gc_init();
+
     // This is our trampoline, when we come back from a longjmp a different
     // current_thunk will be set and we will just trampoline into the new
     // thunk
@@ -163,4 +165,59 @@ struct object object_base_new(enum object_tag tag) {
         .mark = WHITE,
         .on_stack = true,
     };
+}
+
+struct closure object_closure_one_new(size_t env_id,
+                                      void (*const fn)(struct object *,
+                                                       struct env_elem *),
+                                      struct env_elem *env) {
+    return (struct closure){
+        .base = object_base_new(OBJ_CLOSURE),
+        .size = CLOSURE_ONE,
+        .env_id = env_id,
+        .fn_1 = fn,
+        .env = env
+    };
+}
+
+struct closure object_closure_two_new(size_t env_id,
+                                      void (*const fn)(struct object *,
+                                                       struct object *,
+                                                       struct env_elem *),
+                                      struct env_elem *env) {
+    return (struct closure){
+        .base = object_base_new(OBJ_CLOSURE),
+        .size = CLOSURE_TWO,
+        .env_id = env_id,
+        .fn_2 = fn,
+        .env = env
+    };
+}
+
+struct int_obj object_int_obj_new(int64_t val) {
+    return (struct int_obj){
+        .base = object_base_new(OBJ_INT),
+        .val = val
+    };
+}
+
+
+struct object *env_get(size_t ident_id, struct env_elem *env) {
+    while (env->prev != NULL) {
+        if (env->ident_id == ident_id) {
+            return env->val;
+        }
+    }
+    return NULL;
+}
+
+struct object *env_set(size_t ident_id, struct env_elem *env, struct object *obj) {
+    while (env->prev != NULL) {
+        if (env->ident_id == ident_id) {
+            struct object *prev =  env->val;
+            env->val = obj;
+            return prev;
+        }
+    }
+    return NULL;
 }

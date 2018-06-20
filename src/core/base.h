@@ -16,8 +16,9 @@ enum closure_size {
 };
 
 enum object_tag {
-    CLOSURE = 0,
-    ENV,
+    OBJ_CLOSURE = 0,
+    OBJ_ENV,
+    OBJ_INT,
 };
 
 enum gc_mark_type {
@@ -31,6 +32,9 @@ struct object {
     enum gc_mark_type mark;
     bool on_stack;
 };
+
+
+// builtin objects
 
 
 // TODO: change this to a tree
@@ -55,12 +59,24 @@ struct closure {
     struct env_elem *env;
 };
 
+struct int_obj {
+    struct object base;
+    int64_t val;
+};
+
+
 struct env_table_entry {
     const size_t env_id;
     const size_t num_ids;
     size_t * const var_ids;
 };
 
+
+// get an object from the environment
+struct object *env_get(size_t, struct env_elem *);
+
+// set an existing value in the environment, returning the previous value
+struct object *env_set(size_t, struct env_elem *, struct object *);
 
 // The map of env ids to an array of var ids
 extern struct env_table_entry global_env_table[];
@@ -88,5 +104,8 @@ void scheme_start(struct thunk *);
 void run_minor_gc(struct thunk *);
 
 struct object object_base_new(enum object_tag);
+struct closure object_closure_one_new(size_t, void (*const)(struct object *, struct env_elem *), struct env_elem *);
+struct closure object_closure_two_new(size_t, void (*const)(struct object *, struct object *, struct env_elem *), struct env_elem *);
+struct int_obj object_int_obj_new(int64_t);
 
 #endif /* SOMESCHEME_H */

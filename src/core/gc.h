@@ -57,6 +57,7 @@ struct gc_data {
 void gc_init(void);
 
 void gc_free_noop(struct object *);
+void gc_mark_noop(struct object *, struct gc_context *);
 
 struct object *toheap_closure(struct object *, struct gc_context *);
 void mark_closure(struct object *, struct gc_context *);
@@ -64,6 +65,8 @@ void mark_closure(struct object *, struct gc_context *);
 struct object *toheap_env(struct object *, struct gc_context *);
 void mark_env(struct object *, struct gc_context *);
 void free_env(struct object *);
+
+struct object *toheap_int_obj(struct object *, struct gc_context *);
 
 
 struct gc_context gc_make_context(void);
