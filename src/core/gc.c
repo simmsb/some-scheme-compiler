@@ -8,12 +8,15 @@
 #include "gc.h"
 
 
+MAKE_VECTOR(struct object *, gc_heap_nodes)
 MAKE_VECTOR(size_t, size_t)
 MAKE_QUEUE(struct object *, gc_grey_nodes)
 MAKE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair)
 
+static struct gc_data gc_global_data;
 
-struct gc_funcs gc_func_map[] = {
+// array of gc_funcs for each object type
+static struct gc_funcs gc_func_map[] = {
     [CLOSURE] = (struct gc_funcs){
         .toheap = toheap_closure,
         .mark = mark_closure,
@@ -54,7 +57,7 @@ struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
         return obj;
     }
 
-    struct closure *heap_clos = malloc(sizeof(struct closure));
+    struct closure *heap_clos = gc_malloc(sizeof(struct closure));
     memcpy(heap_clos, obj, sizeof(struct closure));
 
     queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate,
@@ -110,7 +113,7 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
         return obj;
     }
 
-    struct env_elem *heap_env = malloc(sizeof(struct env_elem));
+    struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
     memcpy(heap_env, obj, sizeof(struct env_elem));
 
     queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate,
@@ -204,6 +207,9 @@ struct object *gc_toheap(struct gc_context *ctx, struct object *obj) {
 
     struct object *new_obj = gc_func_map[obj->tag].toheap(obj, ctx);
 
+    // mark the object as now being on the heap
+    new_obj->on_stack = false;
+
     // Add it to the updated tree
     // Even if it was on the heap already we still insert
     // since we then won't process child objects further
@@ -269,4 +275,56 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
         gc_mark_obj(ctx, next_obj);
     }
 
+
+    // go through each heap allocated object and gc them
+    // not really the best, but it would be easy to improve
+    for (size_t i=0; i < gc_global_data.nodes.length; i++) {
+        struct object **ptr = vector_gc_heap_nodes_index_ptr(&gc_global_data.nodes, i);
+        struct object *obj = *ptr;
+        if (obj->mark == WHITE) {
+
+            // execute this object's free function
+            gc_func_map[obj->tag].free(obj);
+
+            // free it, NOTE: should this be done if the object is on the stack
+            if (obj->on_stack) {
+                RUNTIME_ERROR("Object was on the stack during a major GC!");
+            }
+
+            free(obj);
+
+            // set the pointer in the vector to null
+            *ptr = NULL;
+        } else if (obj->mark == GREY) {
+            // this shouldn't happen, but just incase
+            RUNTIME_ERROR("Object was marked grey at time of major GC!");
+        }
+    }
+}
+
+
+void gc_init(void) {
+    gc_global_data.nodes = vector_gc_heap_nodes_new(100);
+}
+
+
+// wrapped malloc that adds allocated stuff to the bookkeeper
+void *gc_malloc(size_t size) {
+    void *ptr = malloc(size);
+    for (size_t i=0; i < gc_global_data.nodes.length; i++) {
+        if (vector_gc_heap_nodes_index(&gc_global_data.nodes, i) == NULL) {
+            vector_gc_heap_nodes_set(&gc_global_data.nodes, ptr, i);
+            return ptr;
+        }
+    }
+    vector_gc_heap_nodes_push(&gc_global_data.nodes, ptr);
+    return ptr;
+}
+
+
+// clean up the heap, all vector cells containing nulls should be moved to the front
+// of the array of tracked objects, if there is a significant amount of free cells we
+// should move everything up and run a shrink to fit
+void gc_heap_maintain(void) {
+    // TODO: complete this
 }

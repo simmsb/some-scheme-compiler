@@ -7,6 +7,7 @@
 #include "queue.h"
 
 DEFINE_VECTOR(size_t, size_t)
+DEFINE_VECTOR(struct object *, gc_heap_nodes)
 DEFINE_QUEUE(struct object *, gc_grey_nodes)
 
 struct ptr_toupdate_pair {
@@ -48,8 +49,12 @@ struct gc_funcs {
 };
 
 
-// array of gc_funcs for each object type
-extern struct gc_funcs gc_func_map[];
+struct gc_data {
+    struct vector_gc_heap_nodes nodes;
+};
+
+
+void gc_init(void);
 
 void gc_free_noop(struct object *);
 
@@ -66,5 +71,8 @@ void gc_free_context(struct gc_context *);
 void gc_minor(struct gc_context *, struct thunk *);
 void gc_major(struct gc_context *, struct thunk *);
 struct object *gc_toheap(struct gc_context *, struct object *);
+
+void gc_heap_maintain(void);
+void *gc_malloc(size_t);
 
 #endif // SOMESCHEME_GC_H
