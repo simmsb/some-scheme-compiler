@@ -27,7 +27,13 @@ pub enum CExpr<'a> {
         ex: Box<CExpr<'a>>,
         typ: Box<CType<'a>>,
     },
-    Lit(Cow<'a, str>),
+    MacroCall {
+        name: Cow<'a, str>,
+        args: Vec<CExpr<'a>>,
+    },
+    InitList(Vec<CExpr<'a>>),
+    LitStr(Cow<'a, str>),
+    LitInt(usize),
 }
 
 #[derive(Debug)]
@@ -169,12 +175,29 @@ impl<'a> ToC for CExpr<'a> {
                     exp ex,
                     chr ')'
                 ),
-            Lit(lit) => export_helper!(
+            MacroCall { name, args } => export_helper!(
+                s,
+                str name,
+                chr '(',
+                vec args,
+                chr ')'
+            ),
+            InitList(exprs) => export_helper!(
+                s,
+                chr '{',
+                vec exprs,
+                chr '}'
+            ),
+            LitStr(lit) => export_helper!(
                     s,
-                    chr '(',
+                    chr '"',
                     str lit,
-                    chr ')'
-                ),
+                    chr '"'
+            ),
+            LitInt(lit) => export_helper!(
+                s,
+                str &lit.to_string()
+            ),
         }
     }
 }

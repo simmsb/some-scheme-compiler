@@ -1,0 +1,8 @@
+#+TITLE: Notes about stuff
+
+
+- We need a way to generate the id's for variables and build env tables for
+  builtin functions, we should do this by having a table of builtin variables and
+  builtin functions, on the C side builtin variables will have an externed
+  =var_id= that is supplied by the code that the compiler generates, aswell as
+  an externed =env_id= for builtin functions, which will be included in the env table

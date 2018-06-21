@@ -20,7 +20,7 @@ fn main() {
                                            10)),
         args: vec![(Cow::Borrowed("a1"),
                     CType::Ptr(box CType::Int { size: 16, sign: false} ))],
-        body: vec![CStmt::Expr(CExpr::Lit(Cow::Borrowed("lol")))],
+        body: vec![CStmt::Expr(CExpr::LitStr(Cow::Borrowed("lol")))],
     };
 
     println!("{}", fn_.export());

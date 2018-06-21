@@ -26,7 +26,7 @@ pub enum LExpr<'a> {
 
 
 #[derive(Debug, Clone)]
-pub struct Env<'a>(HashMap<Cow<'a, str>, usize>);
+pub struct Env<'a>(pub HashMap<Cow<'a, str>, usize>);
 
 
 impl<'a> Env<'a> {

@@ -1,4 +1,5 @@
 use std::{
+    iter::FromIterator,
     collections::HashMap,
     borrow::Cow,
 };
@@ -207,7 +208,7 @@ pub fn codegen<'a>(expr: &LExEnv<'a>) -> CExpr<'a> {
 
     match expr {
         LamRef { id } =>
-            CExpr::Lit(Cow::Owned(format!("lambda_{}", id))),
+            CExpr::LitStr(Cow::Owned(format!("lambda_{}", id))),
         Var { name, global: true, .. } =>
             gen_global_lookup(name.clone()),
         Var { name, global: false, .. } =>
@@ -238,11 +239,35 @@ pub fn codegen<'a>(expr: &LExEnv<'a>) -> CExpr<'a> {
 
 fn gen_global_lookup<'a>(name: Cow<'a, str>) -> CExpr<'a> {
     // TODO: me
-    CExpr::Lit(Cow::Owned("NULL".to_string()))
+    CExpr::LitStr(Cow::Owned("NULL".to_string()))
 }
 
 
 fn gen_local_lookup<'a>(name: Cow<'a, str>) -> CExpr<'a> {
     // TODO: me
-    CExpr::Lit(Cow::Owned("NULL".to_string()))
+    CExpr::LitStr(Cow::Owned("NULL".to_string()))
+}
+
+
+fn gen_env_table_elem<'a>(id: usize, env: &'a Env<'a>) -> CExpr<'a> {
+    CExpr::MacroCall {
+        name: Cow::Borrowed("ENV_ENTRY"),
+        args: env.0.values().map(|&v| CExpr::LitInt(v)).collect(),
+    }
+}
+
+
+/// generate the environment ids, stuff
+pub fn gen_env_ids<'a>(builtin_envs: Vec<(usize, &'a Env<'a>)>,
+                       program_envs: Vec<(usize, &'a Env<'a>)>) -> Vec<CDecl<'a>> {
+    let builtin_var_ids: HashMap<Cow<'a, str>, usize> = HashMap::from_iter(
+        builtin_envs.iter().flat_map(|(_, e)| e.0.clone())
+    );
+
+    let mut env_table_entries = Vec::new();
+
+    env_table_entries.extend(builtin_envs.iter().map(|(id, env)| gen_env_table_elem(*id, env)));
+    env_table_entries.extend(program_envs.iter().map(|(id, env)| gen_env_table_elem(*id, env)));
+
+    unimplemented!("todo");
 }
