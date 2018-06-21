@@ -18,22 +18,7 @@ static struct thunk *current_thunk;
 static void *stack_initial;
 static jmp_buf setjmp_env_buf;
 
-#define ADD_ENV(IDENT, VAL, HEAD)                                              \
-    do {                                                                       \
-        struct env_elem *new_env = alloca(sizeof(struct env_elem));            \
-        memcpy(new_env,                                                        \
-               &(struct env_elem){.base = object_base_new(OBJ_ENV),            \
-                                  .ident_id = (IDENT),                         \
-                                  .val = (VAL),                                \
-                                  .prev = (HEAD),                              \
-                                  .nexts = vector_env_elem_nexts_new(0)},      \
-               sizeof(struct env_elem));                                       \
-                                                                               \
-        vector_env_elem_nexts_push(&(HEAD)->nexts, new_env);                   \
-    } while (0)
-
-void call_closure_one(struct object *rator, size_t rand_id,
-                      struct object *rand) {
+void call_closure_one(struct object *rator, struct object *rand) {
     if (rator->tag != 0) {
         RUNTIME_ERROR("Called object was not a closure");
     }
@@ -44,7 +29,7 @@ void call_closure_one(struct object *rator, size_t rand_id,
         RUNTIME_ERROR("Called a closure that takes two args with one arg");
     }
 
-    ADD_ENV(rand_id, rand, closure->env);
+    // ADD_ENV(rand_id, rand, &closure->env);
     if (stack_check()) {
         closure->fn_1(rand, closure->env);
     } else {
@@ -59,8 +44,7 @@ void call_closure_one(struct object *rator, size_t rand_id,
     }
 }
 
-void call_closure_two(struct object *rator, size_t rand_id, struct object *rand,
-                      size_t cont_id, struct object *cont) {
+void call_closure_two(struct object *rator, struct object *rand, struct object *cont) {
     if (rator->tag != 0) {
         RUNTIME_ERROR("Called object was not a closure");
     }
@@ -71,8 +55,8 @@ void call_closure_two(struct object *rator, size_t rand_id, struct object *rand,
         RUNTIME_ERROR("Called a closure that takes two args with one arg");
     }
 
-    ADD_ENV(rand_id, rand, closure->env);
-    ADD_ENV(cont_id, cont, closure->env);
+    // ADD_ENV(rand_id, rand, &closure->env);
+    // ADD_ENV(cont_id, cont, &closure->env);
 
     if (stack_check()) {
         closure->fn_2(rand, cont, closure->env);

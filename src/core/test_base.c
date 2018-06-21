@@ -1,3 +1,4 @@
+#include "builtin.h"
 #include "base.h"
 
 struct env_table_entry global_env_table[] = {

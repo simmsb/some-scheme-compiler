@@ -25,7 +25,7 @@ fn main() {
 
     println!("{}", fn_.export());
 
-    let exp = "(lambda (x) (* x (fac (- x 1))))";
+    let exp = "(+ 1 2)";
     if let nom::IResult::Done(_, r) = parse::parse_exp(exp) {
         println!("{:#?}", r);
 

@@ -6,12 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define RUNTIME_ERROR(S)                                                       \
-    do {                                                                       \
-        fprintf(stderr, "Runtime Error (%s:%d): %s\n", __func__, __LINE__,     \
-                (S));                                                          \
-        exit(1);                                                               \
-    } while (0)
+#include "common.h"
 
 #define DEFINE_VECTOR(TYPE, TNAME)                                             \
     struct vector_##TNAME {                                                    \

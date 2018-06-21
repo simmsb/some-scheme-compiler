@@ -2,7 +2,7 @@ TESTS = test_queue test_tree test_base
 
 default: base
 
-base.o : base.c base.h gc.h queue.h tree.h vec.h
+base.o : base.c base.h gc.h queue.h tree.h vec.h common.h
 	cc -c base.c -o base.o
 
 base : base.o gc.o tree.o
@@ -13,6 +13,9 @@ gc.o : gc.c gc.h base.h vec.h tree.h queue.h
 
 tree.o : tree.c tree.h vec.h
 	cc -c tree.c -o tree.o
+
+builtin.o : builtin.c builtin.h base.h
+	cc -c builtin.c -o base.o
 
 test_queue : test_queue.c queue.h
 	cc test_queue.c -o test_queue
