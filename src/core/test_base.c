@@ -3,7 +3,7 @@
 
 struct env_table_entry global_env_table[] = {
     ENV_ENTRY(0, 0),
-    ENV_ENTRY(0, 0, 1),
+    ENV_ENTRY(1, 0, 1),
 };
 
 

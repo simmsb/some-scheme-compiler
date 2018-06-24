@@ -25,13 +25,14 @@ pub enum CExpr<'a> {
     },
     Cast {
         ex: Box<CExpr<'a>>,
-        typ: Box<CType<'a>>,
+        typ: CType<'a>,
     },
     MacroCall {
         name: Cow<'a, str>,
         args: Vec<CExpr<'a>>,
     },
     InitList(Vec<CExpr<'a>>),
+    Ident(Cow<'a, str>),
     LitStr(Cow<'a, str>),
     LitInt(usize),
 }
@@ -39,10 +40,11 @@ pub enum CExpr<'a> {
 #[derive(Debug)]
 pub enum CType<'a> {
     Ptr(Box<CType<'a>>),
-    Arr(Box<CType<'a>>, usize),
+    Arr(Box<CType<'a>>, Option<usize>),
     Int { size: usize, sign: bool },
     Struct(Cow<'a, str>),
     Union(Cow<'a, str>),
+    Other(Cow<'a, str>),
     Void,
 }
 
@@ -62,6 +64,7 @@ pub enum CStmt<'a> {
         updt: CExpr<'a>,
         body: Box<CStmt<'a>>,
     },
+    Decl(CDecl<'a>),
     Block(Vec<CStmt<'a>>),
     Expr(CExpr<'a>),
 }
@@ -70,7 +73,7 @@ pub enum CStmt<'a> {
 pub enum CDecl<'a> {
     Fun {
         name: Cow<'a, str>,
-        typ: Box<CType<'a>>,
+        typ: CType<'a>,
         args: Vec<(Cow<'a, str>, CType<'a>)>,
         body: Vec<CStmt<'a>>,
     },
@@ -84,7 +87,7 @@ pub enum CDecl<'a> {
     },
     Var {
         name: Cow<'a, str>,
-        typ: Box<CType<'a>>,
+        typ: CType<'a>,
         init: Option<CExpr<'a>>,
     },
 }
@@ -104,6 +107,16 @@ macro_rules! export_helper {
     ($s:ident, chr $e:expr) => ( $s.push($e) );
     ($s:ident, exp $e:ident) => ( $e.export_internal(&mut $s) );
     ($s:ident, vec $e:expr) => ( for elem in $e { elem.export_internal(&mut $s); } );
+    ($s:ident, vec_csep $e:expr) => ({
+        let mut it = $e.into_iter();
+        if let Some(expr) = it.next() {
+            expr.export_internal(&mut $s);
+        }
+        for elem in it {
+            $s.push(',');
+            elem.export_internal(&mut $s);
+        }
+    });
     ($s:ident, $cmd:tt $op:tt $(, $innercmd:tt $innerop:tt)*) => {{
         export_helper!($s, $cmd $op);
         export_helper!($s, $($innercmd $innerop),*);
@@ -116,88 +129,74 @@ impl<'a> ToC for CExpr<'a> {
 
         match self {
             BinOp { op, left, right } => export_helper!(
-                    s,
-                    chr '(',
-                    exp left,
-                    chr ')',
-                    str op,
-                    chr '(',
-                    exp right,
-                    chr ')'
-                ),
+                s,
+                chr '(',
+                exp left,
+                chr ')',
+                str op,
+                chr '(',
+                exp right,
+                chr ')'
+            ),
             PreUnOp { op, ex } => export_helper!(
-                    s,
-                    chr '(',
-                    exp ex,
-                    chr ')',
-                    str op
-                ),
+                s,
+                str op,
+                chr '(',
+                exp ex,
+                chr ')'
+            ),
             PostUnOp { op, ex } => export_helper!(
-                    s,
-                    str op,
-                    chr '(',
-                    exp ex,
-                    chr ')'
-                ),
+                s,
+                chr '(',
+                exp ex,
+                chr ')',
+                str op
+            ),
             ArrIndexOp { index, expr } => export_helper!(
-                    s,
-                    chr '(',
-                    exp expr,
-                    str ")[",
-                    exp index,
-                    chr ')'
-                ),
-            FunCallOp { expr, ands } => {
-                export_helper!(s,
-                               chr '(',
-                               exp expr,
-                               str ")("
-                );
-
-                let mut it = ands.iter();
-
-                if let Some(expr) = it.next() {
-                    expr.export_internal(&mut s);
-                }
-
-                for expr in it {
-                    s.push(',');
-                    expr.export_internal(&mut s);
-                }
-
-                export_helper!(s, chr ')');
-            }
+                s,
+                chr '(',
+                exp expr,
+                str ")[",
+                exp index,
+                chr ')'
+            ),
+            FunCallOp { expr, ands } => export_helper!(
+                s,
+                chr '(',
+                exp expr,
+                str ")(",
+                vec_csep ands,
+                chr ')'
+            ),
             Cast { ex, typ } => export_helper!(
-                    s,
-                    chr '(',
-                    exp typ,
-                    str ")(",
-                    exp ex,
-                    chr ')'
-                ),
+                s,
+                chr '(',
+                exp typ,
+                str ")(",
+                exp ex,
+                chr ')'
+            ),
             MacroCall { name, args } => export_helper!(
                 s,
                 str name,
                 chr '(',
-                vec args,
+                vec_csep args,
                 chr ')'
             ),
             InitList(exprs) => export_helper!(
                 s,
                 chr '{',
-                vec exprs,
+                vec_csep exprs,
                 chr '}'
             ),
+            Ident(name) => s.push_str(name),
             LitStr(lit) => export_helper!(
-                    s,
-                    chr '"',
-                    str lit,
-                    chr '"'
-            ),
-            LitInt(lit) => export_helper!(
                 s,
-                str &lit.to_string()
+                chr '"',
+                str lit,
+                chr '"'
             ),
+            LitInt(lit) => export_helper!(s, str & lit.to_string()),
         }
     }
 }
@@ -218,13 +217,15 @@ impl<'a> CType<'a> {
         while let Some(typ_o) = typ.take() {
             gen = match typ_o {
                 Ptr(..) => format!("*{}", gen),
-                Arr(_, len) => format!("({})[{}]", gen, len),
+                Arr(_, None) => format!("({})[]", gen),
+                Arr(_, Some(len)) => format!("({})[{}]", gen, len),
                 Int { size, sign } => {
                     let name = format!("{}int{}_t", if *sign { "u" } else { "" }, size);
                     format!("{} {}", name, gen)
                 }
-                Struct(name) => format!("struct {} {}", name, gen),
-                Union(name) => format!("union {} {}", name, gen),
+                Struct(tname) => format!("struct {} {}", tname, gen),
+                Union(tname) => format!("union {} {}", tname, gen),
+                Other(tname) => format!("{} {}", tname, gen),
                 Void => format!("void {}", gen),
             };
 
@@ -258,7 +259,12 @@ impl<'a> ToC for CStmt<'a> {
                 chr ')',
                 exp body
             ),
-            For { init, test, updt, body } => export_helper!(
+            For {
+                init,
+                test,
+                updt,
+                body,
+            } => export_helper!(
                 s,
                 str "for (",
                 exp init,
@@ -269,6 +275,7 @@ impl<'a> ToC for CStmt<'a> {
                 chr ')',
                 exp body
             ),
+            Decl(decl) => export_helper!(s, exp decl),
             Block(body) => export_helper!(
                 s,
                 chr '{',
@@ -289,7 +296,12 @@ impl<'a> ToC for CDecl<'a> {
         use self::CDecl::*;
 
         match self {
-            Fun { name, typ, args, body } => {
+            Fun {
+                name,
+                typ,
+                args,
+                body,
+            } => {
                 let mut f = String::new();
 
                 f.push_str(&name);
@@ -345,7 +357,7 @@ impl<'a> ToC for CDecl<'a> {
             Var { name, typ, init } => {
                 s.push_str(&typ.export_with_name(name));
                 if let Some(init) = init {
-                    export_helper!(s, exp init);
+                    export_helper!(s, str " = ", exp init);
                 }
                 s.push(';');
             }

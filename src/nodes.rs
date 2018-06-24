@@ -31,6 +31,7 @@ pub struct Env<'a>(pub HashMap<Cow<'a, str>, usize>);
 
 impl<'a> Env<'a> {
     pub fn new(parent: &Env<'a>, vals: impl IntoIterator<Item=(Cow<'a, str>, usize)>) -> Self {
+        println!("generating env, parent: {:?}", parent);
         let mut new_map = HashMap::new();
         for (k, v) in parent.0.iter() {
             new_map.insert(k.clone(), v.clone());
@@ -46,6 +47,30 @@ impl<'a> Env<'a> {
 
     pub fn get(&self, key: &Cow<'a, str>) -> Option<usize> {
         self.0.get(key).map(|&a| a)
+    }
+}
+
+
+#[derive(Debug, Copy, Clone)]
+pub enum LamType {
+    OneArg,
+    TwoArg,
+}
+
+
+impl LamType {
+    pub fn ctor_func(&self) -> Cow<'static, str> {
+        match self {
+            LamType::OneArg => Cow::Borrowed("object_closure_one_new"),
+            LamType::TwoArg => Cow::Borrowed("object_closure_two_new"),
+        }
+    }
+
+    pub fn num_args(&self) -> usize {
+        match self {
+            LamType::OneArg => 1,
+            LamType::TwoArg => 2,
+        }
     }
 }
 
@@ -79,7 +104,8 @@ pub enum LExEnv<'a> {
     },
     LamRef {
         id: usize,
-    }
+        lam_type: LamType,
+    },
 }
 
 
@@ -139,8 +165,8 @@ impl<'a> fmt::Display for LExEnv<'a> {
                 write!(f, "({} {} {})", rator, rand, cont),
             Var {name, ..} =>
                 write!(f, "{}", name),
-            LamRef {id} =>
-                write!(f, "lambda:{}", id),
+            LamRef {id, lam_type} =>
+                write!(f, "lambda<{}>:{}", lam_type.num_args(), id),
         }
     }
 }

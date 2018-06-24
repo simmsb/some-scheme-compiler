@@ -24,7 +24,7 @@
 
 #define NUM_ARGS(...) (sizeof((size_t[]){__VA_ARGS__}) / sizeof(size_t))
 #define ENV_ENTRY(ID, ...)                                                     \
-    (struct env_table_entry) {                                                 \
+    [ID] = (struct env_table_entry) {                                          \
         ID, NUM_ARGS(__VA_ARGS__), (size_t[]) { __VA_ARGS__ }                  \
     }
 
@@ -114,11 +114,12 @@ void run_minor_gc(struct thunk *);
 
 struct object object_base_new(enum object_tag);
 struct closure object_closure_one_new(size_t,
-                                      void (*const)(struct object *, struct env_elem *),
+                                      void (*const)(struct object *,
+                                                    struct env_elem *),
                                       struct env_elem *);
-struct closure object_closure_two_new(size_t,
-                                      void (*const)(struct object *, struct object *, struct env_elem *),
-                                      struct env_elem *);
+struct closure object_closure_two_new(
+    size_t, void (*const)(struct object *, struct object *, struct env_elem *),
+    struct env_elem *);
 struct int_obj object_int_obj_new(int64_t);
 
 #endif /* SOMESCHEME_H */

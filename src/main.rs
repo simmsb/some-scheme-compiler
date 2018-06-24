@@ -1,4 +1,4 @@
-#![feature(box_syntax, box_patterns)]
+#![feature(box_syntax, box_patterns, iterator_flatten)]
 
 #[macro_use]
 extern crate nom;
@@ -16,8 +16,8 @@ use std::borrow::Cow;
 fn main() {
     let fn_ = CDecl::Fun {
         name: Cow::Borrowed("lol"),
-        typ: box CType::Ptr(box CType::Arr(box CType::Int { size: 8, sign: false},
-                                           10)),
+        typ: CType::Ptr(box CType::Arr(box CType::Int { size: 8, sign: false},
+                                       Some(10))),
         args: vec![(Cow::Borrowed("a1"),
                     CType::Ptr(box CType::Int { size: 16, sign: false} ))],
         body: vec![CStmt::Expr(CExpr::LitStr(Cow::Borrowed("lol")))],
@@ -42,7 +42,8 @@ fn main() {
         let r = transform::cps_transform_cont(r, cont, &mut context);
         println!("\n\n{0}\n\n{0:#?}", r);
 
-        let (r, ctx) = codegen::resolve_env(r);
+
+        let (r, mut ctx) = codegen::resolve_env(r);
         println!("\n\n{0}\n\n{0:#?}", r);
         println!("{:#?}", ctx);
 
@@ -57,8 +58,23 @@ fn main() {
             println!("{}", lam.export());
         }
 
-        let compiled_root = codegen::codegen(&root);
+
+        let mut supporting_stmts = Vec::new();
+        let mut codegen_ctx = codegen::CodegenCtx::new();
+
+        let compiled_root = codegen::codegen(&root, &mut codegen_ctx, &mut supporting_stmts);
+
+        for stmt in &supporting_stmts {
+            println!("{}", stmt.export());
+        }
+
         println!("{}", compiled_root.export());
 
+        let envs = ctx.lam_map.clone();
+        let generated_env_ids = codegen::gen_env_ids(&mut ctx, envs);
+
+        for decl in &generated_env_ids {
+            println!("{}", decl.export());
+        }
     }
 }

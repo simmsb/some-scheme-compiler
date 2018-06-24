@@ -39,7 +39,7 @@
     DEFINE_BUILTIN_ENV(NAME##_env_2);                                          \
     DEFINE_TWO_ARG_FROM_BUILTIN(NAME)
 
-// builtin atomic operations
+// builtin operations
 
 struct int_obj int_obj_add(struct object *, struct object *);
 
