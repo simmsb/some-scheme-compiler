@@ -275,7 +275,7 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
                     op: Cow::Borrowed("&"),
                     ex: box CExpr::Ident(result_var),
                 },
-                typ: CType::Ptr(box CType::Other(Cow::Borrowed("object"))),
+                typ: CType::Ptr(box CType::Struct(Cow::Borrowed("object"))),
             }
         },
         Var { name, global: true, .. } =>
@@ -336,12 +336,15 @@ fn gen_env_table_elem<'a, 'b>(id: usize, env: &'a Env<'a>) -> CExpr<'b> {
 fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> Vec<(String, usize, Env<'a>)> {
 
     fn make_builtin_binop<'a>(ctx: &mut EnvCtx<'a>, name: &str) -> Vec<(String, usize, Env<'a>)> {
+        let first_var = ctx.gen_var_index();
+        let second_var = ctx.gen_var_index();
+
         let mut first_env = HashMap::new();
-        first_env.insert(Cow::Owned(format!("{}_param_1", name)), ctx.gen_var_index());
+        first_env.insert(Cow::Owned(format!("{}_param_1", name)), first_var);
 
         let mut second_env = HashMap::new();
-        second_env.insert(Cow::Owned(format!("{}_param_1", name)), ctx.gen_var_index());
-        second_env.insert(Cow::Owned(format!("{}_param_2", name)), ctx.gen_var_index());
+        second_env.insert(Cow::Owned(format!("{}_param_1", name)), first_var);
+        second_env.insert(Cow::Owned(format!("{}_param_2", name)), second_var);
 
         vec![
             (format!("{}_env_1", name), ctx.gen_env_index(), Env(first_env)),

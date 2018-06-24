@@ -64,11 +64,18 @@ fn main() {
 
         let compiled_root = codegen::codegen(&root, &mut codegen_ctx, &mut supporting_stmts);
 
-        for stmt in &supporting_stmts {
-            println!("{}", stmt.export());
-        }
+        let compiled_root = cdsl::CStmt::Expr(compiled_root);
 
-        println!("{}", compiled_root.export());
+        supporting_stmts.push(compiled_root);
+
+        let main_fn = cdsl::CDecl::Fun {
+            name: Cow::Borrowed("main"),
+            typ: cdsl::CType::Void,
+            args: vec![],
+            body: supporting_stmts,
+        };
+
+        println!("{}", main_fn.export());
 
         let envs = ctx.lam_map.clone();
         let generated_env_ids = codegen::gen_env_ids(&mut ctx, envs);
