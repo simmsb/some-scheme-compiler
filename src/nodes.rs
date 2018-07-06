@@ -9,10 +9,17 @@ use std::{
 type Cont<'a> = Box<LExpr<'a>>;
 
 #[derive(Debug, Clone)]
+pub enum ExprLit<'a> {
+    StringLit(Cow<'a, str>),
+    NumLit(i64),
+}
+
+#[derive(Debug, Clone)]
 pub enum LExpr<'a> {
     Lam(Vec<Cow<'a, str>>, Vec<LExpr<'a>>),
     App(Box<LExpr<'a>>, Vec<LExpr<'a>>),
     Var(Cow<'a, str>),
+    Lit(ExprLit<'a>),
 
     LamOne(Cow<'a, str>, Vec<LExpr<'a>>),
 
@@ -106,6 +113,19 @@ pub enum LExEnv<'a> {
         id: usize,
         lam_type: LamType,
     },
+    Lit(ExprLit<'a>),
+}
+
+
+impl<'a> fmt::Display for ExprLit<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use nodes::ExprLit::*;
+
+        match self {
+            StringLit(x) => write!(f, "\"{}\"", x),
+            NumLit(x) => write!(f, "{}", x),
+        }
+    }
 }
 
 
@@ -130,6 +150,8 @@ impl<'a> fmt::Display for LExpr<'a> {
             },
             Var(name) =>
                 write!(f, "{}", name),
+            Lit(lit) =>
+                write!(f, "{}", lit),
             LamOneOne(arg, box expr) =>
                 write!(f, "(lambda ({}) {})", arg, expr),
             AppOne(box operator, box operands) =>
@@ -167,6 +189,8 @@ impl<'a> fmt::Display for LExEnv<'a> {
                 write!(f, "{}", name),
             LamRef {id, lam_type} =>
                 write!(f, "lambda<{}>:{}", lam_type.num_args(), id),
+            Lit(lit) =>
+                write!(f, "{}", lit),
         }
     }
 }

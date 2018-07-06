@@ -1,10 +1,18 @@
 use std::borrow::Cow;
 use nom;
 
-use nodes::LExpr;
+use nodes::{LExpr, ExprLit};
 
 fn ident_char(chr: char) -> bool {
     return !" ()\n\r".contains(chr);
+}
+
+pub fn parse_int<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
+    map_res!(input,
+        pair!(opt!(char!('-')), nom::digit),
+        | (sign, num) : (Option<char>, &str) | num.parse::<i64>()
+             .map(|n| if sign.is_some() { -n } else { n })
+             .map(|n| LExpr::Lit(ExprLit::NumLit(n))))
 }
 
 pub fn parse_ident<'a>(input: &'a str) -> nom::IResult<&'a str, Cow<'a, str>> {
@@ -40,7 +48,7 @@ pub fn parse_app<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
 }
 
 pub fn parse_exp<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
-    alt_complete!(input, parse_var | parse_lam | parse_app)
+    alt_complete!(input, parse_int | parse_var | parse_lam | parse_app)
 }
 
 

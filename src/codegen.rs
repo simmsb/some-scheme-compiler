@@ -3,7 +3,7 @@ use std::{
     borrow::Cow,
 };
 use cdsl::{CStmt, CExpr, CDecl, CType};
-use nodes::{LExpr, Env, LExEnv, LamType};
+use nodes::{LExpr, Env, LExEnv, LamType, ExprLit};
 use itertools::Itertools;
 // use transform::TransformContext;
 
@@ -105,6 +105,7 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
                 id: id,
             }
         },
+        LExpr::Lit(x) => LExEnv::Lit(x),
         _ => unreachable!("Node of type {:?} should not exist here.", node),
     }
 }
@@ -304,8 +305,14 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
                 ands: vec![rator_compiled, rand_compiled, cont_compiled],
             }
         },
+        Lit(x) => gen_lit_ctor(x, supporting_stmts),
         _ => unreachable!("Should not exist here"),
     }
+}
+
+
+fn gen_lit_ctor<'a>(lit: &ExprLit<'a>, supporting_stmts: &mut Vec<CStmt<'a>>) -> CExpr<'a> {
+    unimplemented!()
 }
 
 
@@ -388,10 +395,10 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
     }
 
     let (builtin_binops_envs, builtin_binops_vars): (Vec<_>, Vec<_>) = vec![
-        make_builtin_binop(ctx, "int_obj_add"),
-        make_builtin_binop(ctx, "int_obj_sub"),
-        make_builtin_binop(ctx, "int_obj_mul"),
-        make_builtin_binop(ctx, "int_obj_div"),
+        make_builtin_binop(ctx, "object_int_obj_add"),
+        make_builtin_binop(ctx, "object_int_obj_sub"),
+        make_builtin_binop(ctx, "object_int_obj_mul"),
+        make_builtin_binop(ctx, "object_int_obj_div"),
     ].into_iter().unzip();
 
     let builtin_binops_envs = builtin_binops_envs
@@ -403,7 +410,7 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
         .flat_map(|x| x);
 
     let (builtin_unops_envs, builtin_unops_vars): (Vec<_>, Vec<_>) = vec![
-        make_builtin_unop(ctx, "int_obj_new"),
+        // nothing here atm
     ].into_iter().unzip();
 
     let envs = builtin_binops_envs.chain(builtin_unops_envs).collect();

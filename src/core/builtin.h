@@ -6,9 +6,40 @@
 #define DEFINE_BUILTIN_VAR(NAME) extern size_t NAME
 #define DEFINE_BUILTIN_ENV(NAME) extern size_t NAME
 
+#define DEFINE_ONE_ARG_FROM_BUILTIN(NAME)                                      \
+    void NAME##_func(struct object *, struct object *, struct env_elem *)
+
+#define MAKE_ONE_ARG_FROM_BUILTIN(NAME, TYPE, ARG, ENV)                        \
+    void NAME##_func(struct object *rand, struct object *cont,                 \
+                     struct env_elem *env) {                                   \
+        ADD_ENV(ARG, rand, &env);                                              \
+                                                                               \
+        struct object *lhs = env_get(ARG, env);                                \
+                                                                               \
+        TYPE result = (NAME)(lhs, rand);                                       \
+                                                                               \
+        call_closure_one(cont, (struct object *)&result);                      \
+    }
+
 #define DEFINE_TWO_ARG_FROM_BUILTIN(NAME)                                      \
     void NAME##_func_1(struct object *, struct object *, struct env_elem *);   \
     void NAME##_func_2(struct object *, struct object *, struct env_elem *)
+
+#define DEFINE_UNOP(NAME)                                                      \
+    DEFINE_BUILTIN_VAR(NAME##_param)                                           \
+    DEFINE_BUILTIN_ENV(NAME##_env)                                             \
+    DEFINE_ONE_ARG_FROM_BUILTIN(NAME)
+
+// for defining constructor functions
+#define DEFINE_CONSTRUCTOR_BUILTIN(NAME, TYPE)                                 \
+    void NAME##_ctor(TYPE, struct object *, struct env_elem *)
+
+#define MAKE_CONSTRUCTOR_BUILTIN(NAME, TYPE)                                   \
+    void NAME##_ctor(TYPE inp, struct object *cont, struct env_elem *env) {    \
+        TYPE result = (NAME)(inp);                                             \
+                                                                               \
+        call_closure_one(cont, (struct object *)&result);                      \
+    }
 
 #define MAKE_TWO_ARG_FROM_BUILTIN(NAME, TYPE, LHS_ARG, RHS_ARG, LHS_ENV,       \
                                   RHS_ENV)                                     \
@@ -41,17 +72,19 @@
 
 // builtin operations
 
-struct int_obj int_obj_add(struct object *, struct object *);
+struct int_obj object_int_obj_add(struct object *, struct object *);
 
-struct int_obj int_obj_sub(struct object *, struct object *);
+struct int_obj object_int_obj_sub(struct object *, struct object *);
 
-struct int_obj int_obj_mul(struct object *, struct object *);
+struct int_obj object_int_obj_mul(struct object *, struct object *);
 
-struct int_obj int_obj_div(struct object *, struct object *);
+struct int_obj object_int_obj_div(struct object *, struct object *);
 
-DEFINE_BINOP(int_obj_add);
-DEFINE_BINOP(int_obj_sub);
-DEFINE_BINOP(int_obj_mul);
-DEFINE_BINOP(int_obj_div);
+DEFINE_BINOP(object_int_obj_add);
+DEFINE_BINOP(object_int_obj_sub);
+DEFINE_BINOP(object_int_obj_mul);
+DEFINE_BINOP(object_int_obj_div);
+
+DEFINE_CONSTRUCTOR_BUILTIN(object_int_obj_new, int64_t);
 
 #endif // SOMESCHEME_BUILTIN_H
