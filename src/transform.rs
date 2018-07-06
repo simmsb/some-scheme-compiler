@@ -16,7 +16,7 @@ impl TransformContext {
     pub fn gen_ident<'a>(&mut self, name: &str) -> Cow<'a, str> {
         let var = format!("$anon_var_{}_{}", name, self.genvar_count);
         self.genvar_count += 1;
-        Cow::Owned(var)
+        Cow::from(var)
     }
 
     pub fn gen_var<'a>(&mut self, name: &str) -> LExpr<'a> {
@@ -26,13 +26,13 @@ impl TransformContext {
     pub fn gen_cont<'a>(&mut self) -> LExpr<'a> {
         let var = format!("$cont_var_{}", self.genvar_count);
         self.genvar_count += 1;
-        LExpr::Var(Cow::Owned(var))
+        LExpr::Var(Cow::from(var))
     }
 
     pub fn gen_throwaway<'a>(&mut self) -> Cow<'a, str> {
         let var = format!("$throwaway_var_{}", self.genvar_count);
         self.genvar_count += 1;
-        Cow::Owned(var)
+        Cow::from(var)
     }
 
     pub fn gen_throwaway_var<'a>(&mut self) -> LExpr<'a> {
@@ -41,7 +41,7 @@ impl TransformContext {
 }
 
 fn void_obj() -> LExpr<'static> {
-    LExpr::Var(Cow::Borrowed("void"))
+    LExpr::Var(Cow::from("void"))
 }
 
 /// Transform multiple parameter lambdas into nested single parmeters.

@@ -8,7 +8,7 @@ fn ident_char(chr: char) -> bool {
 }
 
 pub fn parse_ident<'a>(input: &'a str) -> nom::IResult<&'a str, Cow<'a, str>> {
-    map!(input, take_while1!(ident_char), Cow::Borrowed)
+    map!(input, take_while1!(ident_char), Cow::from)
 }
 
 pub fn parse_var<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {

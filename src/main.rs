@@ -1,7 +1,9 @@
-#![feature(box_syntax, box_patterns, iterator_flatten)]
+#![feature(box_syntax, box_patterns)]
 
 #[macro_use]
 extern crate nom;
+#[macro_use]
+extern crate derive_more;
 extern crate itertools;
 
 pub mod cdsl;
@@ -15,12 +17,12 @@ use std::borrow::Cow;
 
 fn main() {
     let fn_ = CDecl::Fun {
-        name: Cow::Borrowed("lol"),
+        name: Cow::from("lol"),
         typ: CType::Ptr(box CType::Arr(box CType::Int { size: 8, sign: false},
                                        Some(10))),
-        args: vec![(Cow::Borrowed("a1"),
+        args: vec![(Cow::from("a1"),
                     CType::Ptr(box CType::Int { size: 16, sign: false} ))],
-        body: vec![CStmt::Expr(CExpr::LitStr(Cow::Borrowed("lol")))],
+        body: vec![CStmt::Expr(CExpr::LitStr(Cow::from("lol")))],
     };
 
     println!("{}", fn_.export());
@@ -69,7 +71,7 @@ fn main() {
         supporting_stmts.push(compiled_root);
 
         let main_fn = cdsl::CDecl::Fun {
-            name: Cow::Borrowed("main"),
+            name: Cow::from("main"),
             typ: cdsl::CType::Void,
             args: vec![],
             body: supporting_stmts,

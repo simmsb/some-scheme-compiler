@@ -61,8 +61,8 @@ pub enum LamType {
 impl LamType {
     pub fn ctor_func(&self) -> Cow<'static, str> {
         match self {
-            LamType::OneArg => Cow::Borrowed("object_closure_one_new"),
-            LamType::TwoArg => Cow::Borrowed("object_closure_two_new"),
+            LamType::OneArg => Cow::from("object_closure_one_new"),
+            LamType::TwoArg => Cow::from("object_closure_two_new"),
         }
     }
 

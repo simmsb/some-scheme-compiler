@@ -4,6 +4,7 @@ use std::{
 };
 use cdsl::{CStmt, CExpr, CDecl, CType};
 use nodes::{LExpr, Env, LExEnv, LamType};
+use itertools::Itertools;
 // use transform::TransformContext;
 
 // Process: every lambda body defines new bindings
@@ -187,7 +188,7 @@ impl CodegenCtx {
     }
 
     fn gen_var<'a>(&mut self) -> Cow<'a, str> {
-        Cow::Owned(format!("unique_var_{}", self.gen_var_id()))
+        Cow::from(format!("unique_var_{}", self.gen_var_id()))
     }
 }
 
@@ -203,7 +204,7 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
 
                 let name = format!("lambda_{}", id);
 
-                let args = vec![(arg.clone(), CType::Ptr(box CType::Struct(Cow::Borrowed("object"))))];
+                let args = vec![(arg.clone(), CType::Ptr(box CType::Struct(Cow::from("object"))))];
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 
                 let mut body = Vec::new();
@@ -211,7 +212,7 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 body.push(main_expr);
 
                 CDecl::Fun {
-                    name: Cow::Owned(name),
+                    name: Cow::from(name),
                     typ: CType::Void,
                     args: args,
                     body: body,
@@ -224,8 +225,8 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 let name = format!("lambda_{}", id);
 
                 let args = vec![
-                    (arg.clone(),  CType::Ptr(box CType::Struct(Cow::Borrowed("object")))),
-                    (cont.clone(), CType::Ptr(box CType::Struct(Cow::Borrowed("object")))),
+                    (arg.clone(),  CType::Ptr(box CType::Struct(Cow::from("object")))),
+                    (cont.clone(), CType::Ptr(box CType::Struct(Cow::from("object")))),
                 ];
 
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
@@ -235,7 +236,7 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 body.push(main_expr);
 
                 CDecl::Fun {
-                    name: Cow::Owned(name),
+                    name: Cow::from(name),
                     typ: CType::Void,
                     args: args,
                     body: body,
@@ -253,17 +254,17 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
 
     match expr {
         LamRef { id, lam_type } => {
-            let lam_name = Cow::Owned(format!("lambda_{}", id));
+            let lam_name = Cow::from(format!("lambda_{}", id));
 
             let result_var = ctx.gen_var();
 
             let lambda_generate = CStmt::Decl(
                 CDecl::Var {
                     name: result_var.clone(),
-                    typ: CType::Struct(Cow::Borrowed("closure")),
+                    typ: CType::Struct(Cow::from("closure")),
                     init: Some(CExpr::FunCallOp {
                         expr: box CExpr::Ident(lam_type.ctor_func()),
-                        ands: vec![CExpr::LitInt(*id), CExpr::Ident(lam_name), CExpr::Ident(Cow::Borrowed("env"))],
+                        ands: vec![CExpr::LitInt(*id), CExpr::Ident(lam_name), CExpr::Ident(Cow::from("env"))],
                     }),
                 }
             );
@@ -272,10 +273,10 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
 
             CExpr::Cast {
                 ex: box CExpr::PreUnOp {
-                    op: Cow::Borrowed("&"),
+                    op: Cow::from("&"),
                     ex: box CExpr::Ident(result_var),
                 },
-                typ: CType::Ptr(box CType::Struct(Cow::Borrowed("object"))),
+                typ: CType::Ptr(box CType::Struct(Cow::from("object"))),
             }
         },
         Var { name, global: true, .. } =>
@@ -289,7 +290,7 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
             let rand_compiled = codegen(rand, ctx, supporting_stmts);
 
             CExpr::FunCallOp {
-                expr: box CExpr::Ident(Cow::Borrowed("call_closure_one")),
+                expr: box CExpr::Ident(Cow::from("call_closure_one")),
                 ands: vec![cont_compiled, rand_compiled],
             }
         },
@@ -299,7 +300,7 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
             let cont_compiled = codegen(cont, ctx, supporting_stmts);
 
             CExpr::FunCallOp {
-                expr: box CExpr::Ident(Cow::Borrowed("call_closure_two")),
+                expr: box CExpr::Ident(Cow::from("call_closure_two")),
                 ands: vec![rator_compiled, rand_compiled, cont_compiled],
             }
         },
@@ -310,13 +311,13 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
 
 fn gen_global_lookup<'a>(name: Cow<'a, str>) -> CExpr<'a> {
     // TODO: me
-    CExpr::LitStr(Cow::Owned(format!("!global_lookup_for_{}_here!", name)))
+    CExpr::LitStr(Cow::from(format!("!global_lookup_for_{}_here!", name)))
 }
 
 
 fn gen_local_lookup<'a>(id: usize) -> CExpr<'a> {
     CExpr::FunCallOp {
-        expr: box CExpr::Ident(Cow::Borrowed("env_get")),
+        expr: box CExpr::Ident(Cow::from("env_get")),
         ands: vec![CExpr::LitInt(id)],
     }
 }
@@ -327,79 +328,123 @@ fn gen_env_table_elem<'a, 'b>(id: usize, env: &'a Env<'a>) -> CExpr<'b> {
     args.extend(env.0.values().map(|&v| CExpr::LitInt(v)));
 
     CExpr::MacroCall {
-        name: Cow::Borrowed("ENV_ENTRY"),
+        name: Cow::from("ENV_ENTRY"),
         args: args,
     }
 }
 
 
-fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> Vec<(String, usize, Env<'a>)> {
+#[derive(Constructor)]
+struct CompleteEnv<'a> {
+    name: Cow<'a, str>,
+    id: usize,
+    env: Env<'a>,
+}
 
-    fn make_builtin_binop<'a>(ctx: &mut EnvCtx<'a>, name: &str) -> Vec<(String, usize, Env<'a>)> {
-        let first_var = ctx.gen_var_index();
-        let second_var = ctx.gen_var_index();
+
+#[derive(Constructor)]
+struct CompleteVar<'a> {
+    name: Cow<'a, str>,
+    id: usize,
+}
+
+
+fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<CompleteVar<'a>>) {
+
+    fn make_builtin_binop<'a>(ctx: &mut EnvCtx<'a>, name: &str) -> (Vec<CompleteEnv<'a>>, Vec<CompleteVar<'a>>) {
+        let (first_var_name, first_var_id)   = (Cow::from(format!("{}_param_1", name)), ctx.gen_var_index());
+        let (second_var_name, second_var_id) = (Cow::from(format!("{}_param_2", name)), ctx.gen_var_index());
 
         let mut first_env = HashMap::new();
-        first_env.insert(Cow::Owned(format!("{}_param_1", name)), first_var);
+        first_env.insert(first_var_name.clone(), first_var_id);
 
         let mut second_env = HashMap::new();
-        second_env.insert(Cow::Owned(format!("{}_param_1", name)), first_var);
-        second_env.insert(Cow::Owned(format!("{}_param_2", name)), second_var);
+        second_env.insert(first_var_name.clone(), first_var_id);
+        second_env.insert(second_var_name.clone(), second_var_id);
 
-        vec![
-            (format!("{}_env_1", name), ctx.gen_env_index(), Env(first_env)),
-            (format!("{}_env_2", name), ctx.gen_env_index(), Env(second_env)),
-        ]
+        let envs = vec![
+            CompleteEnv::new(Cow::from(format!("{}_env_1", name)), ctx.gen_env_index(), Env(first_env)),
+            CompleteEnv::new(Cow::from(format!("{}_env_2", name)), ctx.gen_env_index(), Env(second_env)),
+        ];
+
+        let vars = vec![
+            CompleteVar::new(first_var_name, first_var_id),
+            CompleteVar::new(second_var_name, second_var_id),
+        ];
+
+        (envs, vars)
     }
 
-    let builtins = vec![
+    fn make_builtin_unop<'a>(ctx: &mut EnvCtx<'a>, name: &str) -> (CompleteEnv<'a>, CompleteVar<'a>) {
+        let (var_name, var_id) = (Cow::from(format!("{}_param_1", name)), ctx.gen_var_index());
+
+        let mut env = HashMap::new();
+        env.insert(var_name.clone(), var_id);
+
+        let env = CompleteEnv::new(Cow::from(format!("{}_env_1", name)), ctx.gen_env_index(), Env(env));
+        let var = CompleteVar::new(var_name, var_id);
+
+        (env, var)
+    }
+
+    let (builtin_binops_envs, builtin_binops_vars): (Vec<_>, Vec<_>) = vec![
         make_builtin_binop(ctx, "int_obj_add"),
         make_builtin_binop(ctx, "int_obj_sub"),
         make_builtin_binop(ctx, "int_obj_mul"),
         make_builtin_binop(ctx, "int_obj_div"),
-    ].into_iter().flatten().collect();
+    ].into_iter().unzip();
 
-    builtins
+    let builtin_binops_envs = builtin_binops_envs
+        .into_iter()
+        .flat_map(|x| x); // use flat map for now (until itertools is sorted out)
+
+    let builtin_binops_vars = builtin_binops_vars
+        .into_iter()
+        .flat_map(|x| x);
+
+    let (builtin_unops_envs, builtin_unops_vars): (Vec<_>, Vec<_>) = vec![
+        make_builtin_unop(ctx, "int_obj_new"),
+    ].into_iter().unzip();
+
+    let envs = builtin_binops_envs.chain(builtin_unops_envs).collect();
+    let vars = builtin_binops_vars.chain(builtin_unops_vars).collect();
+
+    (envs, vars)
 }
 
 
 /// generate the environment ids, stuff
 pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: Vec<(usize, Env<'a>)>) -> Vec<CDecl<'a>> {
-    let builtin_envs = gen_builtin_envs(ctx);
-
-    let builtin_var_ids: Vec<_> = builtin_envs.iter()
-                                              .flat_map(|(_, _, e)| e.0.clone())
-                                              .collect();
-
-    let builtin_env_ids: Vec<_> = builtin_envs.iter()
-                                              .map(|(name, id, _)| (name.to_owned(), *id))
-                                              .collect();
+    let (builtin_envs, builtin_vars) = gen_builtin_envs(ctx);
 
     let mut env_table_entries = Vec::new();
 
-    env_table_entries.extend(builtin_envs.iter().map(|(_, id, env)| gen_env_table_elem(*id, env)));
+    env_table_entries.extend(builtin_envs.iter().map(|CompleteEnv { name: _, id, env }| gen_env_table_elem(*id, env)));
     env_table_entries.extend(program_envs.iter().map(|(id, env)| gen_env_table_elem(*id, env)));
 
     let global_env_table_decl = CDecl::Var {
-        name: Cow::Borrowed("global_env_table"),
-        typ: CType::Arr(box CType::Struct(Cow::Borrowed("env_table_entry")), None),
+        name: Cow::from("global_env_table"),
+        typ: CType::Arr(box CType::Struct(Cow::from("env_table_entry")), None),
         init: Some(CExpr::InitList(env_table_entries)),
     };
 
-    let builtin_var_ids_decl: Vec<_> = builtin_var_ids.iter()
-                                              .map(|(name, id)| CDecl::Var {
-                                                  name: name.clone(),
-                                                  typ: CType::Other(Cow::Borrowed("size_t")),
-                                                  init: Some(CExpr::LitInt(*id)),
-                                              })
-                                              .collect();
-    let builtin_env_ids_decl: Vec<_> = builtin_env_ids.into_iter()
-                                              .map(|(name, id)| CDecl::Var {
-                                                  name: Cow::Owned(name),
-                                                  typ: CType::Other(Cow::Borrowed("size_t")),
-                                                  init: Some(CExpr::LitInt(id)),
-                                              })
-                                              .collect();
+    let builtin_var_ids_decl: Vec<_> = builtin_vars
+        .iter()
+        .map(|CompleteVar { name, id }| CDecl::Var {
+            name: name.clone(),
+            typ: CType::Other(Cow::from("size_t")),
+            init: Some(CExpr::LitInt(*id)),
+        })
+        .collect();
+
+    let builtin_env_ids_decl: Vec<_> = builtin_envs
+        .iter()
+        .map(|CompleteEnv { name, id, env: _ }| CDecl::Var {
+            name: name.clone(),
+            typ: CType::Other(Cow::from("size_t")),
+            init: Some(CExpr::LitInt(*id)),
+        })
+        .collect();
 
     let mut results = Vec::new();
     results.push(global_env_table_decl);
