@@ -29,7 +29,6 @@ void call_closure_one(struct object *rator, struct object *rand) {
         RUNTIME_ERROR("Called a closure that takes two args with one arg");
     }
 
-    // ADD_ENV(rand_id, rand, &closure->env);
     if (stack_check()) {
         closure->fn_1(rand, closure->env);
     } else {
@@ -55,15 +54,12 @@ void call_closure_two(struct object *rator, struct object *rand, struct object *
         RUNTIME_ERROR("Called a closure that takes two args with one arg");
     }
 
-    // ADD_ENV(rand_id, rand, &closure->env);
-    // ADD_ENV(cont_id, cont, &closure->env);
-
     if (stack_check()) {
         closure->fn_2(rand, cont, closure->env);
     } else {
         // TODO, move to our own gc allocator?
         struct thunk thnk = {
-            .closr = closure, // copy the closure
+            .closr = closure,
             .two = {rand, cont},
         };
         struct thunk *thnk_heap = malloc(sizeof(struct thunk));
@@ -72,11 +68,13 @@ void call_closure_two(struct object *rator, struct object *rand, struct object *
     }
 }
 
-void halt_func(struct object *cont, struct env_elem *env) {
-    (void)cont; // mmh
-    (void)env;
+struct void_obj halt_func(struct object *inp) {
+    (void)inp; // mmh
     printf("Halt");
     exit(0);
+
+    // unreachable
+    return object_void_obj_new();
 }
 
 static size_t get_stack_limit(void) {
@@ -185,6 +183,12 @@ struct int_obj object_int_obj_new(int64_t val) {
     };
 }
 
+struct void_obj object_void_obj_new(void) {
+    return (struct void_obj){
+        .base = object_base_new(OBJ_VOID)
+    };
+}
+
 
 struct object *env_get(size_t ident_id, struct env_elem *env) {
     while (env->prev != NULL) {
@@ -192,7 +196,8 @@ struct object *env_get(size_t ident_id, struct env_elem *env) {
             return env->val;
         }
     }
-    return NULL;
+
+    RUNTIME_ERROR("Value not present in env: %ld");
 }
 
 struct object *env_set(size_t ident_id, struct env_elem *env, struct object *obj) {

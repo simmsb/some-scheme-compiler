@@ -39,6 +39,7 @@ enum object_tag {
     OBJ_CLOSURE = 0,
     OBJ_ENV,
     OBJ_INT,
+    OBJ_VOID,
 };
 
 enum gc_mark_type { WHITE = 0, GREY, BLACK };
@@ -78,6 +79,10 @@ struct int_obj {
     int64_t val;
 };
 
+struct void_obj {
+    struct object base;
+};
+
 struct env_table_entry {
     const size_t env_id;
     const size_t num_ids;
@@ -108,7 +113,7 @@ struct thunk {
 
 void call_closure_one(struct object *, struct object *);
 void call_closure_two(struct object *, struct object *, struct object *);
-void halt_func(struct object *, struct env_elem *);
+struct void_obj halt_func(struct object *);
 void scheme_start(struct thunk *);
 void run_minor_gc(struct thunk *);
 
@@ -121,5 +126,6 @@ struct closure object_closure_two_new(
     size_t, void (*const)(struct object *, struct object *, struct env_elem *),
     struct env_elem *);
 struct int_obj object_int_obj_new(int64_t);
+struct void_obj object_void_obj_new(void);
 
 #endif /* SOMESCHEME_H */

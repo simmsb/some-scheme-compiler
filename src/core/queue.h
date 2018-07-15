@@ -44,7 +44,7 @@
             size_t new_size = 1 + queue->len + (queue->len >> 2);              \
             queue->data = realloc(queue->data, new_size * sizeof(TYPE));       \
             queue->len = new_size;                                             \
-            DEBUG_LOG("growing queue from %ld to %ld\n", old_size, new_size);  \
+            DEBUG_LOG("growing queue from %ld to %ld", old_size, new_size);  \
                                                                                \
             size_t delta_size = new_size - old_size;                           \
                                                                                \
@@ -87,6 +87,7 @@
          */                                                                    \
         return queue->head + queue->len - queue->tail;                         \
     }                                                                          \
+                                                                               \
     void queue_##TNAME##_free(struct queue_##TNAME *queue) {                   \
         free(queue->data);                                                     \
     }

@@ -12,6 +12,7 @@ type Cont<'a> = Box<LExpr<'a>>;
 pub enum ExprLit<'a> {
     StringLit(Cow<'a, str>),
     NumLit(i64),
+    Void
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +20,8 @@ pub enum LExpr<'a> {
     Lam(Vec<Cow<'a, str>>, Vec<LExpr<'a>>),
     App(Box<LExpr<'a>>, Vec<LExpr<'a>>),
     Var(Cow<'a, str>),
+    BuiltinIdent(Cow<'a, str>),
+    BuiltinApp(Cow<'a, str>, Box<LExpr<'a>>),
     Lit(ExprLit<'a>),
 
     LamOne(Cow<'a, str>, Vec<LExpr<'a>>),
@@ -38,7 +41,6 @@ pub struct Env<'a>(pub HashMap<Cow<'a, str>, usize>);
 
 impl<'a> Env<'a> {
     pub fn new(parent: &Env<'a>, vals: impl IntoIterator<Item=(Cow<'a, str>, usize)>) -> Self {
-        println!("generating env, parent: {:?}", parent);
         let mut new_map = HashMap::new();
         for (k, v) in parent.0.iter() {
             new_map.insert(k.clone(), v.clone());
@@ -106,13 +108,14 @@ pub enum LExEnv<'a> {
            env: Env<'a>,
     },
     Var { name: Cow<'a, str>,
-          global: bool,
           env: Env<'a>,
     },
     LamRef {
         id: usize,
         lam_type: LamType,
     },
+    BuiltinIdent(Cow<'a, str>),
+    BuiltinApp(Cow<'a, str>, Box<LExEnv<'a>>),
     Lit(ExprLit<'a>),
 }
 
@@ -124,6 +127,7 @@ impl<'a> fmt::Display for ExprLit<'a> {
         match self {
             StringLit(x) => write!(f, "\"{}\"", x),
             NumLit(x) => write!(f, "{}", x),
+            Void => write!(f, "NULL"),
         }
     }
 }
@@ -148,10 +152,12 @@ impl<'a> fmt::Display for LExpr<'a> {
                 }
                 write!(f, ")")
             },
-            Var(name) =>
+            Var(name) | BuiltinIdent(name) =>
                 write!(f, "{}", name),
             Lit(lit) =>
                 write!(f, "{}", lit),
+            BuiltinApp(name, box operand) =>
+                write!(f, "({} {})", name, operand),
             LamOneOne(arg, box expr) =>
                 write!(f, "(lambda ({}) {})", arg, expr),
             AppOne(box operator, box operands) =>
@@ -185,12 +191,14 @@ impl<'a> fmt::Display for LExEnv<'a> {
                 write!(f, "({} {})", cont, rand),
             App2 {rator, rand, cont, ..} =>
                 write!(f, "({} {} {})", rator, rand, cont),
-            Var {name, ..} =>
+            Var {name, ..} | BuiltinIdent(name) =>
                 write!(f, "{}", name),
             LamRef {id, lam_type} =>
                 write!(f, "lambda<{}>:{}", lam_type.num_args(), id),
             Lit(lit) =>
                 write!(f, "{}", lit),
+            BuiltinApp(name, box operand) =>
+                write!(f, "({} {})", name, operand),
         }
     }
 }

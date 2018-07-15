@@ -16,23 +16,20 @@
                                                                                \
         struct object *lhs = env_get(ARG, env);                                \
                                                                                \
-        TYPE result = (NAME)(lhs, rand);                                       \
+        TYPE result = (NAME)(lhs);                                             \
                                                                                \
         call_closure_one(cont, (struct object *)&result);                      \
     }
 
 #define DEFINE_TWO_ARG_FROM_BUILTIN(NAME)                                      \
-    void NAME##_func_1(struct object *, struct object *, struct env_elem *);   \
+    void NAME##_func(struct object *, struct object *, struct env_elem *);   \
     void NAME##_func_2(struct object *, struct object *, struct env_elem *)
 
 #define DEFINE_UNOP(NAME)                                                      \
-    DEFINE_BUILTIN_VAR(NAME##_param)                                           \
-    DEFINE_BUILTIN_ENV(NAME##_env)                                             \
+    DEFINE_BUILTIN_VAR(NAME##_param);                                          \
+    DEFINE_BUILTIN_ENV(NAME##_env);                                            \
     DEFINE_ONE_ARG_FROM_BUILTIN(NAME)
 
-// for defining constructor functions
-#define DEFINE_CONSTRUCTOR_BUILTIN(NAME, TYPE)                                 \
-    void NAME##_ctor(TYPE, struct object *, struct env_elem *)
 
 #define MAKE_CONSTRUCTOR_BUILTIN(NAME, TYPE)                                   \
     void NAME##_ctor(TYPE inp, struct object *cont, struct env_elem *env) {    \
@@ -43,7 +40,7 @@
 
 #define MAKE_TWO_ARG_FROM_BUILTIN(NAME, TYPE, LHS_ARG, RHS_ARG, LHS_ENV,       \
                                   RHS_ENV)                                     \
-    void NAME##_func_1(struct object *rand, struct object *cont,               \
+    void NAME##_func(struct object *rand, struct object *cont,               \
                        struct env_elem *env) {                                 \
         ADD_ENV(LHS_ARG, rand, &env);                                          \
                                                                                \
@@ -64,9 +61,9 @@
     }
 
 #define DEFINE_BINOP(NAME)                                                     \
-    DEFINE_BUILTIN_VAR(NAME##_param_1);                                        \
+    DEFINE_BUILTIN_VAR(NAME##_param);                                        \
     DEFINE_BUILTIN_VAR(NAME##_param_2);                                        \
-    DEFINE_BUILTIN_ENV(NAME##_env_1);                                          \
+    DEFINE_BUILTIN_ENV(NAME##_env);                                          \
     DEFINE_BUILTIN_ENV(NAME##_env_2);                                          \
     DEFINE_TWO_ARG_FROM_BUILTIN(NAME)
 
@@ -85,6 +82,6 @@ DEFINE_BINOP(object_int_obj_sub);
 DEFINE_BINOP(object_int_obj_mul);
 DEFINE_BINOP(object_int_obj_div);
 
-DEFINE_CONSTRUCTOR_BUILTIN(object_int_obj_new, int64_t);
+DEFINE_UNOP(halt_func);
 
 #endif // SOMESCHEME_BUILTIN_H

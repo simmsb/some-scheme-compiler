@@ -32,6 +32,11 @@ static struct gc_funcs gc_func_map[] = {
         .mark = gc_mark_noop,
         .free = gc_free_noop
     },
+    [OBJ_VOID] = (struct gc_funcs){
+        .toheap = toheap_void_obj,
+        .mark = gc_mark_noop,
+        .free = gc_free_noop
+    },
 };
 
 
@@ -192,6 +197,17 @@ struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
     }
 
     return (struct object *)intobj;
+}
+
+
+struct object *toheap_void_obj(struct object *obj, struct gc_context *ctx) {
+    if (!obj->on_stack) {
+        struct int_obj *heap_voidobj = gc_malloc(sizeof(struct void_obj));
+        memcpy(heap_voidobj, obj, sizeof(struct void_obj));
+        obj = (struct object *)heap_voidobj;
+    }
+
+    return obj;
 }
 
 

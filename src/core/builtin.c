@@ -50,18 +50,20 @@ struct int_obj object_int_obj_div(struct object *lhs, struct object *rhs) {
 }
 
 MAKE_TWO_ARG_FROM_BUILTIN(object_int_obj_add, struct int_obj,
-                          object_int_obj_add_param_1,
-                          object_int_obj_add_param_2, object_int_obj_add_env_1,
+                          object_int_obj_add_param,
+                          object_int_obj_add_param_2, object_int_obj_add_env,
                           object_int_obj_add_env_2)
 MAKE_TWO_ARG_FROM_BUILTIN(object_int_obj_sub, struct int_obj,
-                          object_int_obj_sub_param_1,
-                          object_int_obj_sub_param_2, object_int_obj_sub_env_1,
+                          object_int_obj_sub_param,
+                          object_int_obj_sub_param_2, object_int_obj_sub_env,
                           object_int_obj_sub_env_2)
 MAKE_TWO_ARG_FROM_BUILTIN(object_int_obj_mul, struct int_obj,
-                          object_int_obj_mul_param_1,
-                          object_int_obj_mul_param_2, object_int_obj_mul_env_1,
+                          object_int_obj_mul_param,
+                          object_int_obj_mul_param_2, object_int_obj_mul_env,
                           object_int_obj_mul_env_2)
 MAKE_TWO_ARG_FROM_BUILTIN(object_int_obj_div, struct int_obj,
-                          object_int_obj_div_param_1,
-                          object_int_obj_div_param_2, object_int_obj_div_env_1,
+                          object_int_obj_div_param,
+                          object_int_obj_div_param_2, object_int_obj_div_env,
                           object_int_obj_div_env_2)
+
+MAKE_ONE_ARG_FROM_BUILTIN(halt_func, struct void_obj, halt_func_param, halt_func_env)

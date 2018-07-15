@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use nodes::LExpr;
+use nodes::{LExpr, ExprLit};
 
 // compiler transformation stage
 
@@ -41,26 +41,142 @@ impl TransformContext {
 }
 
 fn void_obj() -> LExpr<'static> {
-    LExpr::Var(Cow::from("void"))
+    LExpr::Lit(ExprLit::Void)
 }
 
+
+/// Renames some functions to their builtin equivalent
+///
+/// For example:
+/// ```scheme
+/// (+ 1 2)
+/// ```
+///
+/// becomes
+///
+/// ```scheme
+/// (builtin_int_obj_add_func_1 1 2)
+/// ```
+pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
+    use nodes::LExpr::*;
+
+    match expr {
+        Lam(args, body) => {
+            let body: Vec<_> = body
+                .into_iter()
+                .map(|e| rename_builtins(e, ctx))
+                .collect();
+            Lam(args, body)
+        },
+        App(box operator, operands) => {
+            let operator = rename_builtins(operator, ctx);
+            let operands: Vec<_> = operands
+                .into_iter()
+                .map(|e| rename_builtins(e, ctx))
+                .collect();
+            App(box operator, operands)
+        }
+        Var(var) => {
+            let builtin_name = match var.as_ref() {
+                "+" => "object_int_obj_add",
+                "-" => "object_int_obj_sub",
+                "*" => "object_int_obj_mul",
+                "/" => "object_int_obj_div",
+                _   => return Var(var),
+            };
+            BuiltinIdent(Cow::from(builtin_name))
+        },
+        Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
+        _ => unreachable!("Shouldn't be touching this yet."),
+    }
+}
+
+
+/// Transforms literals into their correct literal constructor form
+///
+/// For example:
+/// ```scheme
+/// 12
+/// ```
+///
+/// becomes
+///
+/// ```scheme
+/// (object_int_obj_new 12)
+/// ```
+pub fn transform_lits<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
+    use nodes::LExpr::*;
+
+    match expr {
+        Lam(args, body) => {
+            let body: Vec<_> = body
+                .into_iter()
+                .map(|e| transform_lits(e, ctx))
+                .collect();
+            Lam(args, body)
+        },
+        App(box operator, operands) => {
+            let operator = transform_lits(operator, ctx);
+            let operands: Vec<_> = operands
+                .into_iter()
+                .map(|e| transform_lits(e, ctx))
+                .collect();
+            App(box operator, operands)
+        }
+        Var(..) | BuiltinIdent(..) => expr,
+        Lit(lit) => {
+            // special case for void type which has no param
+            if let ExprLit::Void = lit {
+                let fn_name = BuiltinIdent(Cow::from("object_void_obj_new"));
+                return App(box fn_name, vec![]);
+            };
+
+            let ctor_fn = match lit {
+                ExprLit::StringLit(..) => "object_str_obj_new",
+                ExprLit::NumLit(..)    => "object_int_obj_new",
+                ExprLit::Void          => unreachable!(),
+            };
+
+            let ctor_fn = Cow::from(ctor_fn);
+
+            BuiltinApp(ctor_fn, box Lit(lit))
+        },
+        _ => unreachable!("Shouldn't be touching this yet."),
+    }
+}
+
+
 /// Transform multiple parameter lambdas into nested single parmeters.
+///
+/// ```scheme
 /// (lambda (a b c) ...)
 /// becomes
 /// (lambda (a)
 ///   (lambda (b)
 ///     (lambda (c)
 ///       ...)))
+/// ```
+///
 /// Transform calls with multiple parameters into nested calls each applying single parameters
+///
+/// ```scheme
 /// (f a b c)
+/// ```
+///
 /// becomes
+///
+/// ```scheme
 /// ((((f) a) b) c)
+/// ```
 pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
     use nodes::LExpr::*;
 
     match expr {
         Lam(args, body) => {
-            let body: Vec<_> = body.into_iter().map(|x| expand_lam_app(x, ctx)).collect();
+            let body: Vec<_> = body
+                .into_iter()
+                .map(|x| expand_lam_app(x, ctx))
+                .collect();
             match args.len() {
                 0 => LamOne(ctx.gen_throwaway(), body),
                 _ => {
@@ -90,7 +206,7 @@ pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
                 }
             }
         }
-        Var(..) | Lit(..) => expr,
+        Var(..) | Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet"),
     }
 }
@@ -147,7 +263,7 @@ pub fn cps_transform_cont<'a>(
     ctx: &mut TransformContext,
 ) -> LExpr<'a> {
     match expr {
-        LExpr::Var(..) | LExpr::LamOneOne(..) | LExpr::LamOneOneCont(..) => {
+        LExpr::Var(..) | LExpr::LamOneOne(..) | LExpr::LamOneOneCont(..) | LExpr::BuiltinIdent(..) | LExpr::BuiltinApp(..) => {
             LExpr::AppOne(box cont, box cps_transform(expr, ctx))
         }
         LExpr::AppOne(box operator, box operand) => {

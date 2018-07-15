@@ -1,5 +1,6 @@
 #![feature(box_syntax, box_patterns)]
 
+
 #[macro_use]
 extern crate nom;
 #[macro_use]
@@ -27,34 +28,51 @@ fn main() {
 
     println!("{}", fn_.export());
 
+    let transforms = &[
+        transform::rename_builtins,
+        transform::transform_lits,
+        transform::expand_lam_app,
+        transform::expand_lam_body,
+    ];
+
     let exp = "(+ 1 2)";
-    if let nom::IResult::Done(_, r) = parse::parse_exp(exp) {
+    if let nom::IResult::Done(_, mut r) = parse::parse_exp(exp) {
         println!("{:#?}", r);
 
         let mut context = transform::TransformContext::new();
 
         println!("{}", r);
-        let r = transform::expand_lam_app(r, &mut context);
-        println!("{0}\n{0:#?}", r);
-        let r = transform::expand_lam_body(r, &mut context);
-        println!("{0}\n{0:#?}", r);
 
-        let (_, cont) = parse::parse_var("halt").unwrap();
+        for transform in transforms {
+            r = transform(r, &mut context);
+            println!("{0}\n{0:#?}", r);
+        }
+
+        let cont = nodes::LExpr::BuiltinIdent(Cow::from("halt_func"));
 
         let r = transform::cps_transform_cont(r, cont, &mut context);
-        println!("\n\n{0}\n\n{0:#?}", r);
+        println!("\n\ncps_transform: {0}\n\n{0:#?}", r);
 
 
         let (r, mut ctx) = codegen::resolve_env(r);
-        println!("\n\n{0}\n\n{0:#?}", r);
+        println!("\n\nresolved_env: {0}\n\n{0:#?}", r);
         println!("{:#?}", ctx);
 
         let (root, lambdas) = codegen::extract_lambdas(r);
-        println!("{:#?}\n\n{:#?}", root, lambdas);
+        println!("root: {:#?}\n\nlambdas: {:#?}", root, lambdas);
 
-        let compiled_lambdas = codegen::lambda_codegen(&lambdas.values().map(|l| l.clone()).collect::<Vec<_>>());
+        let lambdas_vec: Vec<_> = lambdas.values().map(|l| l.clone()).collect();
 
+        let compiled_lambdas = codegen::lambda_codegen(&lambdas_vec);
+
+        println!("\nCompiled lambdas:\n");
         println!("{:#?}", compiled_lambdas);
+
+        let lambda_protos = codegen::lambda_proto_codegen(&lambdas_vec);
+
+        for lam_proto in &lambda_protos {
+            println!("{}", lam_proto.export());
+        }
 
         for lam in &compiled_lambdas {
             println!("{}", lam.export());
@@ -65,18 +83,19 @@ fn main() {
         let mut codegen_ctx = codegen::CodegenCtx::new();
 
         let compiled_root = codegen::codegen(&root, &mut codegen_ctx, &mut supporting_stmts);
-
         let compiled_root = cdsl::CStmt::Expr(compiled_root);
 
         supporting_stmts.push(compiled_root);
 
+        // println!("supporting: {:#?}", supporting_stmts);
+
         let main_fn = cdsl::CDecl::Fun {
-            name: Cow::from("main"),
+            name: Cow::from("main_lambda"),
             typ: cdsl::CType::Void,
-            args: vec![],
+            args: vec![(Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem"))))],
             body: supporting_stmts,
         };
-
+        // println!("\nFinal result:\n");
         println!("{}", main_fn.export());
 
         let envs = ctx.lam_map.clone();

@@ -51,10 +51,10 @@ impl<'a> EnvCtx<'a> {
 fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>) -> LExEnv<'a> {
     match node {
         LExpr::Var(name) => LExEnv::Var {
-            name: name.clone(),
-            global: !env.get(&name).is_some(),
+            name: name,
             env: env.clone(),
         },
+        LExpr::BuiltinIdent(name) => LExEnv::BuiltinIdent(name),
         LExpr::AppOne(box operator, box operand) => {
             let cont    = resolve_env_internal(operator, env, ctx);
             let operand = resolve_env_internal(operand,  env, ctx);
@@ -106,6 +106,11 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
             }
         },
         LExpr::Lit(x) => LExEnv::Lit(x),
+        LExpr::BuiltinApp(name, box operand) => {
+            let operand = resolve_env_internal(operand, env, ctx);
+
+            LExEnv::BuiltinApp(name, box operand)
+        },
         _ => unreachable!("Node of type {:?} should not exist here.", node),
     }
 }
@@ -197,6 +202,8 @@ impl CodegenCtx {
 pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
     use self::LExEnv::*;
 
+    // TODO: sort out setting the env vars
+
     lams.iter().map(
         |lam| match lam {
             Lam { arg, box expr, env: _, id } => {
@@ -205,7 +212,10 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
 
                 let name = format!("lambda_{}", id);
 
-                let args = vec![(arg.clone(), CType::Ptr(box CType::Struct(Cow::from("object"))))];
+                let args = vec![
+                    (arg.clone(), CType::Ptr(box CType::Struct(Cow::from("object")))),
+                    (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
+                ];
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 
                 let mut body = Vec::new();
@@ -228,6 +238,7 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 let args = vec![
                     (arg.clone(),  CType::Ptr(box CType::Struct(Cow::from("object")))),
                     (cont.clone(), CType::Ptr(box CType::Struct(Cow::from("object")))),
+                    (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
                 ];
 
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
@@ -241,6 +252,46 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                     typ: CType::Void,
                     args: args,
                     body: body,
+                }
+            },
+            _ => unreachable!("Should not exist here"),
+        }
+    ).collect()
+}
+
+
+pub fn lambda_proto_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
+    use self::LExEnv::*;
+
+    lams.iter().map(
+        |lam| match lam {
+            Lam { arg: _, expr: _, env: _, id } => {
+                let name = format!("lambda_{}", id);
+
+                let args = vec![
+                    CType::Ptr(box CType::Struct(Cow::from("object"))),
+                    CType::Ptr(box CType::Struct(Cow::from("env_elem"))),
+                ];
+
+                CDecl::FunProto {
+                    name: Cow::from(name),
+                    typ: CType::Void,
+                    args: args,
+                }
+            },
+            LamCont { arg: _, cont: _, expr: _, env: _, id } => {
+                let name = format!("lambda_{}", id);
+
+                let args = vec![
+                    CType::Ptr(box CType::Struct(Cow::from("object"))),
+                    CType::Ptr(box CType::Struct(Cow::from("object"))),
+                    CType::Ptr(box CType::Struct(Cow::from("env_elem"))),
+                ];
+
+                CDecl::FunProto {
+                    name: Cow::from(name),
+                    typ: CType::Void,
+                    args: args,
                 }
             },
             _ => unreachable!("Should not exist here"),
@@ -265,7 +316,7 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
                     typ: CType::Struct(Cow::from("closure")),
                     init: Some(CExpr::FunCallOp {
                         expr: box CExpr::Ident(lam_type.ctor_func()),
-                        ands: vec![CExpr::LitInt(*id), CExpr::Ident(lam_name), CExpr::Ident(Cow::from("env"))],
+                        ands: vec![CExpr::LitUInt(*id), CExpr::Ident(lam_name), CExpr::Ident(Cow::from("env"))],
                     }),
                 }
             );
@@ -280,11 +331,37 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
                 typ: CType::Ptr(box CType::Struct(Cow::from("object"))),
             }
         },
-        Var { name, global: true, .. } =>
-            gen_global_lookup(name.clone()),
-        Var { name, global: false, env } => {
+        Var { name, env } => {
             println!("var name: {}, env: {:#?}", name, env);
             gen_local_lookup(env.get(name).expect("Variable should exist in environment"))
+        },
+        BuiltinIdent(name) => {
+            let result_var = ctx.gen_var();
+
+            let closure = CStmt::Decl(
+                CDecl::Var {
+                    name: result_var.clone(),
+                    typ: CType::Struct(Cow::from("closure")),
+                    init: Some(CExpr::FunCallOp {
+                        expr: box CExpr::Ident(Cow::from("object_closure_two_new")),
+                        ands: vec![
+                            CExpr::Ident(Cow::from(format!("{}_env", name))),
+                            CExpr::Ident(Cow::from(format!("{}_func", name))),
+                            CExpr::Ident(Cow::from("env"))
+                        ],
+                    }),
+                }
+            );
+
+            supporting_stmts.push(closure);
+
+            CExpr::Cast {
+                ex: box CExpr::PreUnOp {
+                    op: Cow::from("&"),
+                    ex: box CExpr::Ident(result_var),
+                },
+                typ: CType::Ptr(box CType::Struct(Cow::from("object"))),
+            }
         },
         App1 { cont, rand, .. } => {
             let cont_compiled = codegen(cont, ctx, supporting_stmts);
@@ -305,34 +382,43 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
                 ands: vec![rator_compiled, rand_compiled, cont_compiled],
             }
         },
-        Lit(x) => gen_lit_ctor(x, supporting_stmts),
+        Lit(x) => gen_lit(x, supporting_stmts),
+        BuiltinApp(name, rand) => {
+
+            // TODO: This is borked, we need to generate the result and pass a pointer to it
+
+            let rand_compiled = codegen(rand, ctx, supporting_stmts);
+
+            CExpr::FunCallOp {
+                expr: box CExpr::Ident(name.clone()),
+                ands: vec![rand_compiled],
+            }
+        },
         _ => unreachable!("Should not exist here"),
     }
 }
 
 
-fn gen_lit_ctor<'a>(lit: &ExprLit<'a>, supporting_stmts: &mut Vec<CStmt<'a>>) -> CExpr<'a> {
-    unimplemented!()
-}
-
-
-fn gen_global_lookup<'a>(name: Cow<'a, str>) -> CExpr<'a> {
-    // TODO: me
-    CExpr::LitStr(Cow::from(format!("!global_lookup_for_{}_here!", name)))
+fn gen_lit<'a>(lit: &ExprLit<'a>, _supporting_stmts: &mut Vec<CStmt<'a>>) -> CExpr<'a> {
+    match lit {
+        ExprLit::NumLit(x) => CExpr::LitIInt(x.clone() as isize),
+        ExprLit::StringLit(x) => CExpr::LitStr(x.clone()),
+        ExprLit::Void => CExpr::Ident(Cow::from("NULL"))
+    }
 }
 
 
 fn gen_local_lookup<'a>(id: usize) -> CExpr<'a> {
     CExpr::FunCallOp {
         expr: box CExpr::Ident(Cow::from("env_get")),
-        ands: vec![CExpr::LitInt(id)],
+        ands: vec![CExpr::LitUInt(id), CExpr::Ident(Cow::from("env"))],
     }
 }
 
 
 fn gen_env_table_elem<'a, 'b>(id: usize, env: &'a Env<'a>) -> CExpr<'b> {
-    let mut args = vec![CExpr::LitInt(id)];
-    args.extend(env.0.values().map(|&v| CExpr::LitInt(v)));
+    let mut args = vec![CExpr::LitUInt(id)];
+    args.extend(env.0.values().map(|&v| CExpr::LitUInt(v)));
 
     CExpr::MacroCall {
         name: Cow::from("ENV_ENTRY"),
@@ -359,7 +445,7 @@ struct CompleteVar<'a> {
 fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<CompleteVar<'a>>) {
 
     fn make_builtin_binop<'a>(ctx: &mut EnvCtx<'a>, name: &str) -> (Vec<CompleteEnv<'a>>, Vec<CompleteVar<'a>>) {
-        let (first_var_name, first_var_id)   = (Cow::from(format!("{}_param_1", name)), ctx.gen_var_index());
+        let (first_var_name, first_var_id)   = (Cow::from(format!("{}_param", name)), ctx.gen_var_index());
         let (second_var_name, second_var_id) = (Cow::from(format!("{}_param_2", name)), ctx.gen_var_index());
 
         let mut first_env = HashMap::new();
@@ -370,7 +456,7 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
         second_env.insert(second_var_name.clone(), second_var_id);
 
         let envs = vec![
-            CompleteEnv::new(Cow::from(format!("{}_env_1", name)), ctx.gen_env_index(), Env(first_env)),
+            CompleteEnv::new(Cow::from(format!("{}_env", name)), ctx.gen_env_index(), Env(first_env)),
             CompleteEnv::new(Cow::from(format!("{}_env_2", name)), ctx.gen_env_index(), Env(second_env)),
         ];
 
@@ -383,12 +469,12 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
     }
 
     fn make_builtin_unop<'a>(ctx: &mut EnvCtx<'a>, name: &str) -> (CompleteEnv<'a>, CompleteVar<'a>) {
-        let (var_name, var_id) = (Cow::from(format!("{}_param_1", name)), ctx.gen_var_index());
+        let (var_name, var_id) = (Cow::from(format!("{}_param", name)), ctx.gen_var_index());
 
         let mut env = HashMap::new();
         env.insert(var_name.clone(), var_id);
 
-        let env = CompleteEnv::new(Cow::from(format!("{}_env_1", name)), ctx.gen_env_index(), Env(env));
+        let env = CompleteEnv::new(Cow::from(format!("{}_env", name)), ctx.gen_env_index(), Env(env));
         let var = CompleteVar::new(var_name, var_id);
 
         (env, var)
@@ -410,7 +496,7 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
         .flat_map(|x| x);
 
     let (builtin_unops_envs, builtin_unops_vars): (Vec<_>, Vec<_>) = vec![
-        // nothing here atm
+        make_builtin_unop(ctx, "halt_func"),
     ].into_iter().unzip();
 
     let envs = builtin_binops_envs.chain(builtin_unops_envs).collect();
@@ -440,7 +526,7 @@ pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: Vec<(usize, Env<'a>)>
         .map(|CompleteVar { name, id }| CDecl::Var {
             name: name.clone(),
             typ: CType::Other(Cow::from("size_t")),
-            init: Some(CExpr::LitInt(*id)),
+            init: Some(CExpr::LitUInt(*id)),
         })
         .collect();
 
@@ -449,7 +535,7 @@ pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: Vec<(usize, Env<'a>)>
         .map(|CompleteEnv { name, id, env: _ }| CDecl::Var {
             name: name.clone(),
             typ: CType::Other(Cow::from("size_t")),
-            init: Some(CExpr::LitInt(*id)),
+            init: Some(CExpr::LitUInt(*id)),
         })
         .collect();
 

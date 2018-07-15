@@ -34,7 +34,8 @@ pub enum CExpr<'a> {
     InitList(Vec<CExpr<'a>>),
     Ident(Cow<'a, str>),
     LitStr(Cow<'a, str>),
-    LitInt(usize),
+    LitUInt(usize),
+    LitIInt(isize),
 }
 
 #[derive(Debug)]
@@ -71,6 +72,11 @@ pub enum CStmt<'a> {
 
 #[derive(Debug)]
 pub enum CDecl<'a> {
+    FunProto {
+        name: Cow<'a, str>,
+        typ: CType<'a>,
+        args: Vec<CType<'a>>,
+    },
     Fun {
         name: Cow<'a, str>,
         typ: CType<'a>,
@@ -196,7 +202,9 @@ impl<'a> ToC for CExpr<'a> {
                 str lit,
                 chr '"'
             ),
-            LitInt(lit) => export_helper!(s, str & lit.to_string()),
+            LitUInt(lit) => export_helper!(s, str &lit.to_string()),
+            LitIInt(lit) => export_helper!(s, str &lit.to_string()),
+
         }
     }
 }
@@ -296,6 +304,33 @@ impl<'a> ToC for CDecl<'a> {
         use self::CDecl::*;
 
         match self {
+            FunProto {
+                name,
+                typ,
+                args,
+            } => {
+                let mut f = String::new();
+
+                f.push_str(&name);
+                f.push('(');
+
+                let mut it = args.iter();
+
+                if let Some(atyp) = it.next() {
+                    f.push_str(&atyp.export_with_name(""));
+                }
+
+                for atyp in it {
+                    f.push_str(", ");
+                    f.push_str(&atyp.export_with_name(""));
+                }
+
+                f.push(')');
+
+                s.push_str(&typ.export_with_name(&f));
+
+                s.push(';');
+            }
             Fun {
                 name,
                 typ,
