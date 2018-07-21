@@ -39,7 +39,7 @@ fn main() {
     if let nom::IResult::Done(_, mut r) = parse::parse_exp(exp) {
         println!("{:#?}", r);
 
-        let mut context = transform::TransformContext::new();
+        let mut context = transform::TransformContext::default();
 
         println!("{}", r);
 
@@ -61,7 +61,7 @@ fn main() {
         let (root, lambdas) = codegen::extract_lambdas(r);
         println!("root: {:#?}\n\nlambdas: {:#?}", root, lambdas);
 
-        let lambdas_vec: Vec<_> = lambdas.values().map(|l| l.clone()).collect();
+        let lambdas_vec: Vec<_> = lambdas.values().cloned().collect();
 
         let compiled_lambdas = codegen::lambda_codegen(&lambdas_vec);
 
@@ -80,7 +80,7 @@ fn main() {
 
 
         let mut supporting_stmts = Vec::new();
-        let mut codegen_ctx = codegen::CodegenCtx::new();
+        let mut codegen_ctx = codegen::CodegenCtx::default();
 
         let compiled_root = codegen::codegen(&root, &mut codegen_ctx, &mut supporting_stmts);
         let compiled_root = cdsl::CStmt::Expr(compiled_root);
@@ -99,7 +99,7 @@ fn main() {
         println!("{}", main_fn.export());
 
         let envs = ctx.lam_map.clone();
-        let generated_env_ids = codegen::gen_env_ids(&mut ctx, envs);
+        let generated_env_ids = codegen::gen_env_ids(&mut ctx, &envs);
 
         for decl in &generated_env_ids {
             println!("{}", decl.export());

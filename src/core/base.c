@@ -32,7 +32,7 @@ void call_closure_one(struct object *rator, struct object *rand) {
     if (stack_check()) {
         closure->fn_1(rand, closure->env);
     } else {
-        // TODO, move to our own gc allocator?
+        // TODO: move to our own gc allocator?
         struct thunk thnk = {
             .closr = closure,
             .one = {rand},
@@ -57,7 +57,7 @@ void call_closure_two(struct object *rator, struct object *rand, struct object *
     if (stack_check()) {
         closure->fn_2(rand, cont, closure->env);
     } else {
-        // TODO, move to our own gc allocator?
+        // TODO: move to our own gc allocator?
         struct thunk thnk = {
             .closr = closure,
             .two = {rand, cont},

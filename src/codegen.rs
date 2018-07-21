@@ -4,14 +4,14 @@ use std::{
 };
 use cdsl::{CStmt, CExpr, CDecl, CType};
 use nodes::{LExpr, Env, LExEnv, LamType, ExprLit};
-use itertools::Itertools;
+// use itertools::Itertools;
 // use transform::TransformContext;
 
 // Process: every lambda body defines new bindings
 // Each binding gets associated with a unique index
 
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EnvCtx<'a> {
     var_index: usize,
     lam_index: usize,
@@ -19,14 +19,6 @@ pub struct EnvCtx<'a> {
 }
 
 impl<'a> EnvCtx<'a> {
-    pub fn new() -> Self {
-        EnvCtx {
-            var_index: 0,
-            lam_index: 0,
-            lam_map: Vec::new(),
-        }
-    }
-
     pub fn gen_var_index(&mut self) -> usize {
         let index = self.var_index;
         self.var_index += 1;
@@ -51,7 +43,7 @@ impl<'a> EnvCtx<'a> {
 fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>) -> LExEnv<'a> {
     match node {
         LExpr::Var(name) => LExEnv::Var {
-            name: name,
+            name,
             env: env.clone(),
         },
         LExpr::BuiltinIdent(name) => LExEnv::BuiltinIdent(name),
@@ -84,10 +76,10 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
             let id = ctx.add_lam_map(new_env.clone());
 
             LExEnv::Lam {
-                arg: arg,
+                arg,
                 expr: box resolve_env_internal(expr, &new_env, ctx),
                 env: new_env,
-                id: id,
+                id,
             }
         },
         LExpr::LamOneOneCont(arg, cont, box expr) => {
@@ -98,11 +90,11 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
             let id = ctx.add_lam_map(new_env.clone());
 
             LExEnv::LamCont {
-                arg: arg,
-                cont: cont,
+                arg,
+                cont,
                 expr: box resolve_env_internal(expr, &new_env, ctx),
                 env: new_env,
-                id: id,
+                id,
             }
         },
         LExpr::Lit(x) => LExEnv::Lit(x),
@@ -115,9 +107,9 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
     }
 }
 
-pub fn resolve_env<'a>(node: LExpr<'a>) -> (LExEnv<'a>, EnvCtx<'a>) {
-    let mut ctx = EnvCtx::new();
-    let primary_env = Env::empty();
+pub fn resolve_env(node: LExpr) -> (LExEnv, EnvCtx) {
+    let mut ctx = EnvCtx::default();
+    let primary_env = Env::default();
 
     let resolved = resolve_env_internal(node, &primary_env, &mut ctx);
 
@@ -175,18 +167,13 @@ pub fn extract_lambdas<'a>(node: LExEnv<'a>) -> (LExEnv<'a>, HashMap<usize, LExE
 }
 
 
+#[derive(Default)]
 pub struct CodegenCtx {
     unique_var_id: usize,
 }
 
 
 impl CodegenCtx {
-    pub fn new() -> Self {
-        CodegenCtx {
-            unique_var_id: 0
-        }
-    }
-
     fn gen_var_id(&mut self) -> usize {
         let var_id = self.unique_var_id;
         self.unique_var_id += 1;
@@ -199,16 +186,14 @@ impl CodegenCtx {
 }
 
 
-pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
+pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
     use self::LExEnv::*;
-
-    // TODO: sort out setting the env vars
 
     lams.iter().map(
         |lam| match lam {
-            Lam { arg, box expr, env: _, id } => {
+            Lam { arg, box expr, id, .. } => {
                 let mut supporting_stmts = Vec::new();
-                let mut ctx = CodegenCtx::new();
+                let mut ctx = CodegenCtx::default();
 
                 let name = format!("lambda_{}", id);
 
@@ -225,13 +210,13 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 CDecl::Fun {
                     name: Cow::from(name),
                     typ: CType::Void,
-                    args: args,
-                    body: body,
+                    args,
+                    body,
                 }
             },
-            LamCont { arg, cont, box expr, env: _, id } => {
+            LamCont { arg, cont, box expr, id, .. } => {
                 let mut supporting_stmts = Vec::new();
-                let mut ctx = CodegenCtx::new();
+                let mut ctx = CodegenCtx::default();
 
                 let name = format!("lambda_{}", id);
 
@@ -250,8 +235,8 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 CDecl::Fun {
                     name: Cow::from(name),
                     typ: CType::Void,
-                    args: args,
-                    body: body,
+                    args,
+                    body,
                 }
             },
             _ => unreachable!("Should not exist here"),
@@ -260,12 +245,12 @@ pub fn lambda_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
 }
 
 
-pub fn lambda_proto_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
+pub fn lambda_proto_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
     use self::LExEnv::*;
 
     lams.iter().map(
         |lam| match lam {
-            Lam { arg: _, expr: _, env: _, id } => {
+            Lam { id, .. } => {
                 let name = format!("lambda_{}", id);
 
                 let args = vec![
@@ -276,10 +261,10 @@ pub fn lambda_proto_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 CDecl::FunProto {
                     name: Cow::from(name),
                     typ: CType::Void,
-                    args: args,
+                    args,
                 }
             },
-            LamCont { arg: _, cont: _, expr: _, env: _, id } => {
+            LamCont { id, .. } => {
                 let name = format!("lambda_{}", id);
 
                 let args = vec![
@@ -291,7 +276,7 @@ pub fn lambda_proto_codegen<'a>(lams: &Vec<LExEnv<'a>>) -> Vec<CDecl<'a>> {
                 CDecl::FunProto {
                     name: Cow::from(name),
                     typ: CType::Void,
-                    args: args,
+                    args,
                 }
             },
             _ => unreachable!("Should not exist here"),
@@ -401,7 +386,7 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
 
 fn gen_lit<'a>(lit: &ExprLit<'a>, _supporting_stmts: &mut Vec<CStmt<'a>>) -> CExpr<'a> {
     match lit {
-        ExprLit::NumLit(x) => CExpr::LitIInt(x.clone() as isize),
+        ExprLit::NumLit(x) => CExpr::LitIInt(*x as isize),
         ExprLit::StringLit(x) => CExpr::LitStr(x.clone()),
         ExprLit::Void => CExpr::Ident(Cow::from("NULL"))
     }
@@ -422,7 +407,7 @@ fn gen_env_table_elem<'a, 'b>(id: usize, env: &'a Env<'a>) -> CExpr<'b> {
 
     CExpr::MacroCall {
         name: Cow::from("ENV_ENTRY"),
-        args: args,
+        args,
     }
 }
 
@@ -442,6 +427,7 @@ struct CompleteVar<'a> {
 }
 
 
+// TODO: document what we do here
 fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<CompleteVar<'a>>) {
 
     fn make_builtin_binop<'a>(ctx: &mut EnvCtx<'a>, name: &str) -> (Vec<CompleteEnv<'a>>, Vec<CompleteVar<'a>>) {
@@ -507,12 +493,12 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
 
 
 /// generate the environment ids, stuff
-pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: Vec<(usize, Env<'a>)>) -> Vec<CDecl<'a>> {
+pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: &[(usize, Env<'a>)]) -> Vec<CDecl<'a>> {
     let (builtin_envs, builtin_vars) = gen_builtin_envs(ctx);
 
     let mut env_table_entries = Vec::new();
 
-    env_table_entries.extend(builtin_envs.iter().map(|CompleteEnv { name: _, id, env }| gen_env_table_elem(*id, env)));
+    env_table_entries.extend(builtin_envs.iter().map(|CompleteEnv { id, env, .. }| gen_env_table_elem(*id, env)));
     env_table_entries.extend(program_envs.iter().map(|(id, env)| gen_env_table_elem(*id, env)));
 
     let global_env_table_decl = CDecl::Var {
@@ -532,7 +518,7 @@ pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: Vec<(usize, Env<'a>)>
 
     let builtin_env_ids_decl: Vec<_> = builtin_envs
         .iter()
-        .map(|CompleteEnv { name, id, env: _ }| CDecl::Var {
+        .map(|CompleteEnv { name, id, .. }| CDecl::Var {
             name: name.clone(),
             typ: CType::Other(Cow::from("size_t")),
             init: Some(CExpr::LitUInt(*id)),

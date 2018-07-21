@@ -4,10 +4,10 @@ use nom;
 use nodes::{LExpr, ExprLit};
 
 fn ident_char(chr: char) -> bool {
-    return !" ()\n\r".contains(chr);
+    !" ()\n\r".contains(chr)
 }
 
-pub fn parse_int<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
+pub fn parse_int(input: &str) -> nom::IResult<&str, LExpr> {
     map_res!(input,
         pair!(opt!(char!('-')), nom::digit),
         | (sign, num) : (Option<char>, &str) | num.parse::<i64>()
@@ -15,15 +15,16 @@ pub fn parse_int<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
              .map(|n| LExpr::Lit(ExprLit::NumLit(n))))
 }
 
-pub fn parse_ident<'a>(input: &'a str) -> nom::IResult<&'a str, Cow<'a, str>> {
+pub fn parse_ident(input: &str) -> nom::IResult<&str, Cow<str>> {
     map!(input, take_while1!(ident_char), Cow::from)
 }
 
-pub fn parse_var<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
+pub fn parse_var(input: &str) -> nom::IResult<&str, LExpr> {
     map!(input, ws!(parse_ident), LExpr::Var)
 }
 
-fn parse_lam<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
+#[allow(cyclomatic_complexity)]
+fn parse_lam(input: &str) -> nom::IResult<&str, LExpr> {
     do_parse!(input,
         char!('(') >>
         ws!(tag!("lambda")) >>
@@ -37,7 +38,7 @@ fn parse_lam<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
     )
 }
 
-pub fn parse_app<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
+pub fn parse_app(input: &str) -> nom::IResult<&str, LExpr> {
     do_parse!(input,
         char!('(') >>
         rand: parse_exp >>
@@ -47,7 +48,7 @@ pub fn parse_app<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
     )
 }
 
-pub fn parse_exp<'a>(input: &'a str) -> nom::IResult<&'a str, LExpr<'a>> {
+pub fn parse_exp(input: &str) -> nom::IResult<&str, LExpr> {
     alt_complete!(input, parse_int | parse_var | parse_lam | parse_app)
 }
 

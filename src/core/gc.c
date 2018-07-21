@@ -329,7 +329,7 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
             // execute this object's free function
             gc_func_map[obj->tag].free(obj);
 
-            // free it, NOTE: should this be done if the object is on the stack
+            // free it, should this be done if the object is on the stack?
             if (obj->on_stack) {
                 RUNTIME_ERROR("Object was on the stack during a major GC!");
             }

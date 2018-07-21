@@ -35,27 +35,19 @@ pub enum LExpr<'a> {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Env<'a>(pub HashMap<Cow<'a, str>, usize>);
 
 
 impl<'a> Env<'a> {
     pub fn new(parent: &Env<'a>, vals: impl IntoIterator<Item=(Cow<'a, str>, usize)>) -> Self {
-        let mut new_map = HashMap::new();
-        for (k, v) in parent.0.iter() {
-            new_map.insert(k.clone(), v.clone());
-        }
-        // new_map.extend(parent.0);
+        let mut new_map = parent.0.clone();
         new_map.extend(vals);
         Env (new_map)
     }
 
-    pub fn empty() -> Self {
-        Env (HashMap::new())
-    }
-
-    pub fn get(&self, key: &Cow<'a, str>) -> Option<usize> {
-        self.0.get(key).map(|&a| a)
+    pub fn get(&self, key: &str) -> Option<usize> {
+        self.0.get(key).cloned()
     }
 }
 
@@ -68,14 +60,14 @@ pub enum LamType {
 
 
 impl LamType {
-    pub fn ctor_func(&self) -> Cow<'static, str> {
+    pub fn ctor_func(self) -> Cow<'static, str> {
         match self {
             LamType::OneArg => Cow::from("object_closure_one_new"),
             LamType::TwoArg => Cow::from("object_closure_two_new"),
         }
     }
 
-    pub fn num_args(&self) -> usize {
+    pub fn num_args(self) -> usize {
         match self {
             LamType::OneArg => 1,
             LamType::TwoArg => 2,

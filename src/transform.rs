@@ -4,15 +4,12 @@ use nodes::{LExpr, ExprLit};
 
 // compiler transformation stage
 
+#[derive(Default)]
 pub struct TransformContext {
     genvar_count: u64,
 }
 
 impl TransformContext {
-    pub fn new() -> Self {
-        TransformContext { genvar_count: 0 }
-    }
-
     pub fn gen_ident<'a>(&mut self, name: &str) -> Cow<'a, str> {
         let var = format!("$anon_var_{}_{}", name, self.genvar_count);
         self.genvar_count += 1;

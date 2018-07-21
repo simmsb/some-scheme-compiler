@@ -244,7 +244,7 @@ impl<'a> CType<'a> {
             };
         }
 
-        return gen;
+        gen
     }
 }
 
