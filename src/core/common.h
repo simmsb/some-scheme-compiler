@@ -4,7 +4,7 @@
 #define RUNTIME_ERROR(F, ...)                                                  \
     do {                                                                       \
         fprintf(stderr, "Runtime Error (%s:%d): ", __func__, __LINE__);        \
-        fprintf(stderr, (F "\n")__VA_OPT__(, ) __VA_ARGS__);                   \
+        fprintf(stderr, F "\n" __VA_OPT__(, ) __VA_ARGS__);                   \
         exit(1);                                                               \
     } while (0)
 

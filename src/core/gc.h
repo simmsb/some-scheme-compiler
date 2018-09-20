@@ -70,6 +70,8 @@ struct object *toheap_int_obj(struct object *, struct gc_context *);
 
 struct object *toheap_void_obj(struct object *, struct gc_context *);
 
+struct object *toheap_string_obj(struct object *, struct gc_context *);
+
 struct gc_context gc_make_context(void);
 void gc_free_context(struct gc_context *);
 void gc_minor(struct gc_context *, struct thunk *);

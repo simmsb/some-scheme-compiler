@@ -28,6 +28,16 @@
         ID, NUM_ARGS(__VA_ARGS__), (size_t[]) { __VA_ARGS__ }                  \
     }
 
+#define OBJECT_STRING_OBJ_NEW(S, STORE_LOC)                                    \
+    do {                                                                       \
+        size_t len = strlen(S);                                                \
+        struct string_obj *new_obj = alloca(sizeof(struct string_obj) + len);  \
+        new_obj->base = object_base_new(OBJ_STR);                              \
+        new_obj->len = len;                                                    \
+        memcpy(&new_obj->buf, (S), len);                                       \
+        *(STORE_LOC) = new_obj;                                                \
+    } while (0)
+
 DEFINE_VECTOR(struct env_elem *, env_elem_nexts)
 
 enum closure_size {
@@ -40,6 +50,7 @@ enum object_tag {
     OBJ_ENV,
     OBJ_INT,
     OBJ_VOID,
+    OBJ_STR,
 };
 
 enum gc_mark_type { WHITE = 0, GREY, BLACK };
@@ -52,9 +63,6 @@ struct object {
 
 // builtin objects
 
-// TODO: change this to a tree
-// gc_env_elem_free should thus unlink the node, etc
-// the lhs should be a single pointer, the rhs an array of pointers and a length
 struct env_elem {
     struct object base;
     const size_t ident_id;
@@ -81,6 +89,12 @@ struct int_obj {
 
 struct void_obj {
     struct object base;
+};
+
+struct string_obj {
+    struct object base;
+    size_t len;
+    const char buf[];
 };
 
 struct env_table_entry {
@@ -127,5 +141,6 @@ struct closure object_closure_two_new(
     struct env_elem *);
 struct int_obj object_int_obj_new(int64_t);
 struct void_obj object_void_obj_new(void);
+struct string_obj object_string_obj_new(const char *);
 
 #endif /* SOMESCHEME_H */

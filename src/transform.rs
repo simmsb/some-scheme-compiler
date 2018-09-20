@@ -74,6 +74,7 @@ pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
             App(box operator, operands)
         }
         Var(var) => {
+            var.as_ref();
             let builtin_name = match var.as_ref() {
                 "+" => "object_int_obj_add",
                 "-" => "object_int_obj_sub",
@@ -83,7 +84,7 @@ pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
             };
             BuiltinIdent(Cow::from(builtin_name))
         },
-        Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
+        Lit(..) | BuiltinIdent(..) | BuiltinApp(..) | BuiltinMacro(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet."),
     }
 }
@@ -122,21 +123,20 @@ pub fn transform_lits<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
         }
         Var(..) | BuiltinIdent(..) => expr,
         Lit(lit) => {
-            // special case for void type which has no param
-            if let ExprLit::Void = lit {
-                let fn_name = BuiltinIdent(Cow::from("object_void_obj_new"));
-                return App(box fn_name, vec![]);
-            };
-
-            let ctor_fn = match lit {
-                ExprLit::StringLit(..) => "object_str_obj_new",
-                ExprLit::NumLit(..)    => "object_int_obj_new",
-                ExprLit::Void          => unreachable!(),
-            };
-
-            let ctor_fn = Cow::from(ctor_fn);
-
-            BuiltinApp(ctor_fn, box Lit(lit))
+            match lit {
+                ExprLit::Void => {
+                    let fn_name = BuiltinIdent(Cow::from("object_void_obj_new"));
+                    App(box fn_name, vec![])
+                },
+                ExprLit::NumLit(..) => {
+                    let ctor_fn = Cow::from("object_int_obj_new");
+                    BuiltinApp(ctor_fn, box Lit(lit))
+                },
+                ExprLit::StringLit(..) => {
+                    let ctor_macro = Cow::from("OBJECT_STRING_OBJ_NEW");
+                    BuiltinMacro(ctor_macro, box Lit(lit))
+                },
+            }
         },
         _ => unreachable!("Shouldn't be touching this yet."),
     }
@@ -203,7 +203,7 @@ pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
                 }
             }
         }
-        Var(..) | Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
+        Var(..) | Lit(..) | BuiltinIdent(..) | BuiltinApp(..) | BuiltinMacro(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet"),
     }
 }
@@ -260,7 +260,12 @@ pub fn cps_transform_cont<'a>(
     ctx: &mut TransformContext,
 ) -> LExpr<'a> {
     match expr {
-        LExpr::Var(..) | LExpr::LamOneOne(..) | LExpr::LamOneOneCont(..) | LExpr::BuiltinIdent(..) | LExpr::BuiltinApp(..) => {
+        LExpr::Var(..) |
+        LExpr::LamOneOne(..) |
+        LExpr::LamOneOneCont(..) |
+        LExpr::BuiltinIdent(..) |
+        LExpr::BuiltinApp(..) |
+        LExpr::BuiltinMacro(..) => {
             LExpr::AppOne(box cont, box cps_transform(expr, ctx))
         }
         LExpr::AppOne(box operator, box operand) => {

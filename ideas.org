@@ -11,3 +11,7 @@
 - Sort out mapping of some functions to internal ones (=+=, =-=, =*=, etc)
 - Sort out quoting, string lits, numeric lits, etc (and pass to relevant builtin
   object constructors)
+- Restructure object creation stuff to be always a macro that may allocate
+  arbitary amounts on the stack.
+- Make sure that we don't have any objects that can be allocated on the stack
+  but then allocate non-shared pointers to the heap (resulting in memory leaks)

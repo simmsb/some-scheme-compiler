@@ -37,6 +37,11 @@ static struct gc_funcs gc_func_map[] = {
         .mark = gc_mark_noop,
         .free = gc_free_noop
     },
+    [OBJ_STR] = (struct gc_funcs){
+        .toheap = toheap_string_obj,
+        .mark = gc_mark_noop,
+        .free = gc_free_noop,
+    },
 };
 
 
@@ -135,7 +140,6 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
                                         (struct object **)&env->val,
                                         (struct object *)env->val});
 
-    // TODO: update these for the vector
     for (size_t i=0; i<env->nexts.length; i++) {
         struct env_elem **env_ptr = vector_env_elem_nexts_index_ptr(&env->nexts, i);
         queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, (struct ptr_toupdate_pair){(struct object **)env_ptr, (struct object *)*env_ptr});
@@ -146,6 +150,10 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
 
 void mark_env(struct object *obj, struct gc_context *ctx) {
     struct env_elem *env = (struct env_elem *)obj;
+
+    // mark both the previous node and all child nodes
+    // such that the entire tree of nodes stays in memory
+    maybe_mark_grey_and_queue(ctx, (struct object *)env->prev);
 
     for (size_t i=0; i < env->nexts.length; i++) {
         struct object *env_ptr = (struct object *)vector_env_elem_nexts_index(&env->nexts, i);
@@ -208,6 +216,23 @@ struct object *toheap_void_obj(struct object *obj, struct gc_context *ctx) {
     }
 
     return obj;
+}
+
+
+struct object *toheap_string_obj(struct object *obj, struct gc_context *ctx) {
+    struct string_obj *strobj = (struct string_obj *)obj;
+
+    if (!obj->on_stack) {
+        size_t total_size = sizeof(struct string_obj) + strobj->len;
+
+        struct string_obj *heap_stringobj = gc_malloc(total_size);
+
+        memcpy(heap_stringobj, strobj, total_size);
+
+        strobj = heap_stringobj;
+    }
+
+    return (struct object *)strobj;
 }
 
 
