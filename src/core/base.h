@@ -28,14 +28,31 @@
         ID, NUM_ARGS(__VA_ARGS__), (size_t[]) { __VA_ARGS__ }                  \
     }
 
-#define OBJECT_STRING_OBJ_NEW(S, STORE_LOC)                                    \
-    do {                                                                       \
-        size_t len = strlen(S);                                                \
-        struct string_obj *new_obj = alloca(sizeof(struct string_obj) + len);  \
-        new_obj->base = object_base_new(OBJ_STR);                              \
-        new_obj->len = len;                                                    \
-        memcpy(&new_obj->buf, (S), len);                                       \
-        *(STORE_LOC) = new_obj;                                                \
+#define OBJECT_STRING_OBJ_NEW(S, NAME)                                  \
+    struct object *(NAME);                                              \
+    do {                                                                \
+        size_t len = strlen(S);                                         \
+        struct string_obj *new_obj = alloca(sizeof(struct string_obj) + len); \
+        new_obj->base = object_base_new(OBJ_STR);                       \
+        new_obj->len = len;                                             \
+        memcpy(&new_obj->buf, (S), len);                                \
+        (NAME) = (struct object *)new_obj;                              \
+    } while (0)
+
+#define OBJECT_INT_OBJ_NEW(n, NAME)                                 \
+    struct object *(NAME);                                          \
+    do {                                                            \
+        struct int_obj *new_obj = alloca(sizeof(struct int_obj));   \
+        *new_obj = object_int_obj_new((n));                         \
+        (NAME) = (struct object *)new_obj;                          \
+    } while(0)
+
+#define OBJECT_VOID_OBJ_NEW(NAME)                                   \
+    struct object *(NAME);                                          \
+    do {                                                            \
+        struct void_obj *new_obj = alloca(sizeof(struct void_obj)); \
+        *new_obj = object_void_obj_new();                           \
+        (NAME) = (struct object *)new_obj;                          \
     } while (0)
 
 DEFINE_VECTOR(struct env_elem *, env_elem_nexts)
