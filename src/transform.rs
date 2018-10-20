@@ -84,7 +84,7 @@ pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
             };
             BuiltinIdent(Cow::from(builtin_name))
         },
-        Lit(..) | BuiltinIdent(..) | BuiltinApp(..) | BuiltinMacro(..) => expr,
+        Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet."),
     }
 }
@@ -121,23 +121,7 @@ pub fn transform_lits<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
                 .collect();
             App(box operator, operands)
         }
-        Var(..) | BuiltinIdent(..) => expr,
-        Lit(lit) => {
-            match lit {
-                ExprLit::Void => {
-                    let fn_name = BuiltinIdent(Cow::from("object_void_obj_new"));
-                    App(box fn_name, vec![])
-                },
-                ExprLit::NumLit(..) => {
-                    let ctor_fn = Cow::from("object_int_obj_new");
-                    BuiltinApp(ctor_fn, box Lit(lit))
-                },
-                ExprLit::StringLit(..) => {
-                    let ctor_macro = Cow::from("OBJECT_STRING_OBJ_NEW");
-                    BuiltinMacro(ctor_macro, box Lit(lit))
-                },
-            }
-        },
+        Var(..) | BuiltinIdent(..) | Lit(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet."),
     }
 }
@@ -203,7 +187,7 @@ pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
                 }
             }
         }
-        Var(..) | Lit(..) | BuiltinIdent(..) | BuiltinApp(..) | BuiltinMacro(..) => expr,
+        Var(..) | Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet"),
     }
 }
@@ -264,8 +248,7 @@ pub fn cps_transform_cont<'a>(
         LExpr::LamOneOne(..) |
         LExpr::LamOneOneCont(..) |
         LExpr::BuiltinIdent(..) |
-        LExpr::BuiltinApp(..) |
-        LExpr::BuiltinMacro(..) => {
+        LExpr::BuiltinApp(..) => {
             LExpr::AppOne(box cont, box cps_transform(expr, ctx))
         }
         LExpr::AppOne(box operator, box operand) => {

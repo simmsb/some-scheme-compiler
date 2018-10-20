@@ -103,11 +103,6 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
 
             LExEnv::BuiltinApp(name, box operand)
         },
-        LExpr::BuiltinMacro(name, box operand) => {
-            let operand = resolve_env_internal(operand, env, ctx);
-
-            LExEnv::BuiltinMacro(name, box operand)
-        }
         _ => unreachable!("Node of type {:?} should not exist here.", node),
     }
 }
