@@ -367,7 +367,28 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
                 ands: vec![rator_compiled, rand_compiled, cont_compiled],
             }
         },
-        Lit(x) => gen_lit(x, supporting_stmts),
+        Lit(x) => {
+            let temp_var = ctx.gen_var();
+
+            let macro_call = match x {
+                ExprLit::Void => CExpr::MacroCall {
+                    name: "OBJECT_VOID_OBJ_NEW".into(),
+                    args: vec![CExpr::Ident(temp_var.clone())],
+                },
+                ExprLit::NumLit(x) => CExpr::MacroCall {
+                    name: "OBJECT_INT_OBJ_NEW".into(),
+                    args: vec![CExpr::LitIInt(*x as isize), CExpr::Ident(temp_var.clone())],
+                },
+                ExprLit::StringLit(x) => CExpr::MacroCall {
+                    name: "OBJECT_STRING_OBJ_NEW".into(),
+                    args: vec![CExpr::LitStr(x.clone()), CExpr::Ident(temp_var.clone())],
+                },
+            };
+
+            supporting_stmts.push(CStmt::Expr(macro_call));
+
+            CExpr::Ident(temp_var)
+        },
         BuiltinApp(name, rand) => {
 
             // TODO: This is borked, we need to generate the result and pass a pointer to it
@@ -382,16 +403,6 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
         _ => unreachable!("Should not exist here"),
     }
 }
-
-
-fn gen_lit<'a>(lit: &ExprLit<'a>, _supporting_stmts: &mut Vec<CStmt<'a>>) -> CExpr<'a> {
-    match lit {
-        ExprLit::NumLit(x) => CExpr::LitIInt(*x as isize),
-        ExprLit::StringLit(x) => CExpr::LitStr(x.clone()),
-        ExprLit::Void => CExpr::Ident(Cow::from("NULL"))
-    }
-}
-
 
 fn gen_local_lookup<'a>(id: usize) -> CExpr<'a> {
     CExpr::FunCallOp {
