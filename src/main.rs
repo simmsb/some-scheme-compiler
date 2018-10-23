@@ -50,6 +50,9 @@ fn main() {
 
         let cont = nodes::LExpr::BuiltinIdent(Cow::from("halt_func"));
 
+        // There's a bug here that's causing some stuff to be discarded
+        // not sure where exactly
+
         let r = transform::cps_transform_cont(r, cont, &mut context);
         println!("\n\ncps_transform: {0}\n\n{0:#?}", r);
 

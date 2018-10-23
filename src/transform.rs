@@ -84,7 +84,7 @@ pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
             };
             BuiltinIdent(Cow::from(builtin_name))
         },
-        Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
+        Lit(..) | BuiltinIdent(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet."),
     }
 }
@@ -187,7 +187,7 @@ pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
                 }
             }
         }
-        Var(..) | Lit(..) | BuiltinIdent(..) | BuiltinApp(..) => expr,
+        Var(..) | Lit(..) | BuiltinIdent(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet"),
     }
 }
@@ -248,9 +248,8 @@ pub fn cps_transform_cont<'a>(
         LExpr::LamOneOne(..) |
         LExpr::LamOneOneCont(..) |
         LExpr::BuiltinIdent(..) |
-        LExpr::BuiltinApp(..) => {
-            LExpr::AppOne(box cont, box cps_transform(expr, ctx))
-        }
+        LExpr::Lit(..) =>
+            LExpr::AppOne(box cont, box cps_transform(expr, ctx)),
         LExpr::AppOne(box operator, box operand) => {
             let operator_var: Cow<'a, str> = ctx.gen_ident("operator_var");
             let operand_var: Cow<'a, str> = ctx.gen_ident("operand_var");
@@ -258,7 +257,7 @@ pub fn cps_transform_cont<'a>(
 
             let new_cont = LExpr::LamOneOne(
                 rv_var.clone(),
-                box LExpr::AppOne(box cont.clone(), box LExpr::Var(rv_var.clone())),
+                box LExpr::AppOne(box cont, box LExpr::Var(rv_var)),
             );
 
             // The expression:
@@ -267,27 +266,33 @@ pub fn cps_transform_cont<'a>(
             // (T rator '(lambda (rator_var)
             //             (T rand '(lambda (rand_var)
             //                        (rator_var rand_var cont)))))
+            //
+
+            let inner_lam =
+                cps_transform_cont(
+                    operand,
+                    LExpr::LamOneOne(
+                        operand_var.clone(),
+                        box LExpr::AppOneCont(
+                            box LExpr::Var(operator_var.clone()),
+                            box LExpr::Var(operand_var.clone()),
+                            box new_cont,
+                        ),
+                    ),
+                    ctx,
+                );
+
+
             cps_transform_cont(
                 operator,
                 LExpr::LamOneOne(
                     operator_var.clone(),
-                    box cps_transform_cont(
-                        operand,
-                        LExpr::LamOneOne(
-                            operand_var.clone(),
-                            box LExpr::AppOneCont(
-                                box LExpr::Var(operator_var.clone()),
-                                box LExpr::Var(operand_var.clone()),
-                                box new_cont,
-                            ),
-                        ),
-                        ctx,
-                    ),
+                    box inner_lam,
                 ),
                 ctx,
             )
         }
-        LExpr::AppOneCont(..) | LExpr::Lit(..) => expr,
+        LExpr::AppOneCont(..) => expr,
         LExpr::Lam(..) | LExpr::App(..) | LExpr::LamOne(..) => unreachable!("These shouldn't exist here"),
     }
 }
@@ -296,20 +301,25 @@ pub fn cps_transform_cont<'a>(
 pub fn cps_transform<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
     match expr {
         LExpr::LamOneOne(arg, box expr) => {
+
             let cont_var: Cow<'a, str> = ctx.gen_ident("cont_var");
             let cont_var_exp = LExpr::Var(cont_var.clone());
+
             let rv_var: Cow<'a, str> = ctx.gen_ident("rv_var");
             let rv_var_exp = LExpr::Var(rv_var.clone());
+
             let cont = LExpr::LamOneOne(
                 rv_var.clone(),
                 box LExpr::AppOne(box cont_var_exp.clone(),  box rv_var_exp),
             );
+
             LExpr::LamOneOneCont(
                 arg,
                 cont_var.clone(),
-                box cps_transform_cont(expr, cont.clone(), ctx),
+                box cps_transform_cont(expr, cont, ctx),
             )
         }
-        x => x,
+        LExpr::LamOneOneCont(_, _, _) => panic!("Are we supposed to see this here?"),
+        x => x
     }
 }

@@ -22,8 +22,6 @@ pub enum LExpr<'a> {
     Var(Cow<'a, str>),
     BuiltinIdent(Cow<'a, str>),
 
-    /// for calls to builtin constructor functions
-    BuiltinApp(Cow<'a, str>, Box<LExpr<'a>>),
     Lit(ExprLit<'a>),
 
     LamOne(Cow<'a, str>, Vec<LExpr<'a>>),
@@ -109,7 +107,6 @@ pub enum LExEnv<'a> {
         lam_type: LamType,
     },
     BuiltinIdent(Cow<'a, str>),
-    BuiltinApp(Cow<'a, str>, Box<LExEnv<'a>>),
     Lit(ExprLit<'a>),
 }
 
@@ -150,8 +147,6 @@ impl<'a> fmt::Display for LExpr<'a> {
                 write!(f, "{}", name),
             Lit(lit) =>
                 write!(f, "{}", lit),
-            BuiltinApp(name, box operand) =>
-                write!(f, "({} {})", name, operand),
             LamOneOne(arg, box expr) =>
                 write!(f, "(lambda ({}) {})", arg, expr),
             AppOne(box operator, box operands) =>
@@ -191,8 +186,6 @@ impl<'a> fmt::Display for LExEnv<'a> {
                 write!(f, "lambda<{}>:{}", lam_type.num_args(), id),
             Lit(lit) =>
                 write!(f, "{}", lit),
-            BuiltinApp(name, box operand) =>
-                write!(f, "({} {})", name, operand),
         }
     }
 }

@@ -98,11 +98,6 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
             }
         },
         LExpr::Lit(x) => LExEnv::Lit(x),
-        LExpr::BuiltinApp(name, box operand) => {
-            let operand = resolve_env_internal(operand, env, ctx);
-
-            LExEnv::BuiltinApp(name, box operand)
-        },
         _ => unreachable!("Node of type {:?} should not exist here.", node),
     }
 }
@@ -388,17 +383,6 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
             supporting_stmts.push(CStmt::Expr(macro_call));
 
             CExpr::Ident(temp_var)
-        },
-        BuiltinApp(name, rand) => {
-
-            // TODO: This is borked, we need to generate the result and pass a pointer to it
-
-            let rand_compiled = codegen(rand, ctx, supporting_stmts);
-
-            CExpr::FunCallOp {
-                expr: box CExpr::Ident(name.clone()),
-                ands: vec![rand_compiled],
-            }
         },
         _ => unreachable!("Should not exist here"),
     }
