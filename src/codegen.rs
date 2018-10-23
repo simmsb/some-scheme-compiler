@@ -312,7 +312,6 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
             }
         },
         Var { name, env } => {
-            println!("var name: {}, env: {:#?}", name, env);
             gen_local_lookup(env.get(name).expect("Variable should exist in environment"))
         },
         BuiltinIdent(name) => {

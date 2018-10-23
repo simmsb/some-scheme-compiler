@@ -17,17 +17,6 @@ use cdsl::*;
 use std::borrow::Cow;
 
 fn main() {
-    let fn_ = CDecl::Fun {
-        name: Cow::from("lol"),
-        typ: CType::Ptr(box CType::Arr(box CType::Int { size: 8, sign: false},
-                                       Some(10))),
-        args: vec![(Cow::from("a1"),
-                    CType::Ptr(box CType::Int { size: 16, sign: false} ))],
-        body: vec![CStmt::Expr(CExpr::LitStr(Cow::from("lol")))],
-    };
-
-    println!("{}", fn_.export());
-
     let transforms = &[
         transform::rename_builtins,
         transform::transform_lits,
@@ -37,39 +26,36 @@ fn main() {
 
     let exp = "(+ 1 2)";
     if let Ok((_, mut r)) = parse::parse_exp(exp) {
-        println!("{:#?}", r);
+        eprintln!("{:#?}", r);
 
         let mut context = transform::TransformContext::default();
 
-        println!("{}", r);
+        eprintln!("{}", r);
 
         for transform in transforms {
             r = transform(r, &mut context);
-            println!("{0}\n{0:#?}", r);
+            eprintln!("{0}\n{0:#?}", r);
         }
 
         let cont = nodes::LExpr::BuiltinIdent(Cow::from("halt_func"));
 
-        // There's a bug here that's causing some stuff to be discarded
-        // not sure where exactly
-
         let r = transform::cps_transform_cont(r, cont, &mut context);
-        println!("\n\ncps_transform: {0}\n\n{0:#?}", r);
+        eprintln!("\n\ncps_transform: {0}\n\n{0:#?}", r);
 
 
         let (r, mut ctx) = codegen::resolve_env(r);
-        println!("\n\nresolved_env: {0}\n\n{0:#?}", r);
-        println!("{:#?}", ctx);
+        eprintln!("\n\nresolved_env: {0}\n\n{0:#?}", r);
+        eprintln!("{:#?}", ctx);
 
         let (root, lambdas) = codegen::extract_lambdas(r);
-        println!("root: {:#?}\n\nlambdas: {:#?}", root, lambdas);
+        eprintln!("root: {:#?}\n\nlambdas: {:#?}", root, lambdas);
 
         let lambdas_vec: Vec<_> = lambdas.values().cloned().collect();
 
         let compiled_lambdas = codegen::lambda_codegen(&lambdas_vec);
 
-        println!("\nCompiled lambdas:\n");
-        println!("{:#?}", compiled_lambdas);
+        eprintln!("\nCompiled lambdas:\n");
+        eprintln!("{:#?}", compiled_lambdas);
 
         let lambda_protos = codegen::lambda_proto_codegen(&lambdas_vec);
 
@@ -90,15 +76,17 @@ fn main() {
 
         supporting_stmts.push(compiled_root);
 
-        // println!("supporting: {:#?}", supporting_stmts);
+        // eprintln!("supporting: {:#?}", supporting_stmts);
 
         let main_fn = cdsl::CDecl::Fun {
             name: Cow::from("main_lambda"),
             typ: cdsl::CType::Void,
-            args: vec![(Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem"))))],
+            args: vec![
+                (Cow::from("_"), CType::Ptr(box CType::Struct(Cow::from("object")))),
+                (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem"))))],
             body: supporting_stmts,
         };
-        // println!("\nFinal result:\n");
+        // eprintln!("\nFinal result:\n");
         println!("{}", main_fn.export());
 
         let envs = ctx.lam_map.clone();
