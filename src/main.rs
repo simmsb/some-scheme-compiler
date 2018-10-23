@@ -36,7 +36,7 @@ fn main() {
     ];
 
     let exp = "(+ 1 2)";
-    if let nom::IResult::Done(_, mut r) = parse::parse_exp(exp) {
+    if let Ok((_, mut r)) = parse::parse_exp(exp) {
         println!("{:#?}", r);
 
         let mut context = transform::TransformContext::default();
