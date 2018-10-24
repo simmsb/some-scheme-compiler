@@ -292,7 +292,7 @@ pub fn cps_transform_cont<'a>(
                 ctx,
             )
         }
-        LExpr::AppOneCont(..) => expr,
+        LExpr::AppOneCont(..) => unreachable!("This shouldn't be visited"),
         LExpr::Lam(..) | LExpr::App(..) | LExpr::LamOne(..) => unreachable!("These shouldn't exist here"),
     }
 }
@@ -319,7 +319,7 @@ pub fn cps_transform<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'
                 box cps_transform_cont(expr, cont, ctx),
             )
         }
-        LExpr::LamOneOneCont(_, _, _) => panic!("Are we supposed to see this here?"),
+        LExpr::LamOneOneCont(..) => panic!("Are we supposed to see this here?"),
         x => x
     }
 }

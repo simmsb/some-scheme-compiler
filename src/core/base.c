@@ -191,10 +191,12 @@ struct void_obj object_void_obj_new(void) {
 
 
 struct object *env_get(size_t ident_id, struct env_elem *env) {
-    while (env->prev != NULL) {
+    while (env != NULL) {
         if (env->ident_id == ident_id) {
             return env->val;
         }
+
+        env = env->prev;
     }
 
     RUNTIME_ERROR("Value not present in env: %ld");

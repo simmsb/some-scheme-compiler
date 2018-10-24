@@ -192,7 +192,7 @@ fn env_set_codegen<'a>(arg: Cow<'a, str>, env: &Env<'a>) -> CStmt<'a> {
                 CExpr::Ident(arg.clone()),
                 CExpr::PreUnOp {
                     op: "&".into(),
-                    ex: box CExpr::Ident("cow".into())
+                    ex: box CExpr::Ident("env".into())
                 }
             ]
         }
