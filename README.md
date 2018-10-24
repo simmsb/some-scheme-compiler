@@ -12,9 +12,9 @@ The makefile is setup to compile the content of `src/core/test_build.c`.
 #include "base.h"
 #include "builtin.h"
 
-\*
+/*
     Generated code pasted here
-*\
+*/
 
 int main() {
   struct env_elem base_env = {
