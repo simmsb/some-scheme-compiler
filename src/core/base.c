@@ -19,13 +19,14 @@ static void *stack_initial;
 static jmp_buf setjmp_env_buf;
 
 void call_closure_one(struct object *rator, struct object *rand) {
-    if (rator->tag != 0) {
+    if (rator->tag != OBJ_CLOSURE) {
         RUNTIME_ERROR("Called object was not a closure");
     }
 
     struct closure *closure = (struct closure *)rator;
 
-    if (closure->size == CLOSURE_TWO) {
+    if (closure->size != CLOSURE_ONE) {
+        printf("Trying to call: %p\n", closure->fn_1);
         RUNTIME_ERROR("Called a closure that takes two args with one arg");
     }
 
@@ -44,14 +45,14 @@ void call_closure_one(struct object *rator, struct object *rand) {
 }
 
 void call_closure_two(struct object *rator, struct object *rand, struct object *cont) {
-    if (rator->tag != 0) {
+    if (rator->tag != OBJ_CLOSURE) {
         RUNTIME_ERROR("Called object was not a closure");
     }
 
     struct closure *closure = (struct closure *)rator;
 
-    if (closure->size != CLOSURE_ONE) {
-        RUNTIME_ERROR("Called a closure that takes two args with one arg");
+    if (closure->size != CLOSURE_TWO) {
+        RUNTIME_ERROR("Called a closure that takes one arg with two args");
     }
 
     if (stack_check()) {

@@ -20,7 +20,7 @@ pub enum LExpr<'a> {
     Lam(Vec<Cow<'a, str>>, Vec<LExpr<'a>>),
     App(Box<LExpr<'a>>, Vec<LExpr<'a>>),
     Var(Cow<'a, str>),
-    BuiltinIdent(Cow<'a, str>),
+    BuiltinIdent(Cow<'a, str>, LamType),
 
     Lit(ExprLit<'a>),
 
@@ -106,7 +106,7 @@ pub enum LExEnv<'a> {
         id: usize,
         lam_type: LamType,
     },
-    BuiltinIdent(Cow<'a, str>),
+    BuiltinIdent(Cow<'a, str>, LamType),
     Lit(ExprLit<'a>),
 }
 
@@ -143,8 +143,10 @@ impl<'a> fmt::Display for LExpr<'a> {
                 }
                 write!(f, ")")
             },
-            Var(name) | BuiltinIdent(name) =>
+            Var(name) =>
                 write!(f, "{}", name),
+            BuiltinIdent(name, arity) =>
+                write!(f, "{}|{:?}", name, arity),
             Lit(lit) =>
                 write!(f, "{}", lit),
             LamOneOne(arg, box expr) =>
@@ -180,8 +182,10 @@ impl<'a> fmt::Display for LExEnv<'a> {
                 write!(f, "({} {})", cont, rand),
             App2 {rator, rand, cont, ..} =>
                 write!(f, "({} {} {})", rator, rand, cont),
-            Var {name, ..} | BuiltinIdent(name) =>
+            Var {name, ..} =>
                 write!(f, "{}", name),
+            BuiltinIdent(name, arity) =>
+                write!(f, "{}|{:?}", name, arity),
             LamRef {id, lam_type} =>
                 write!(f, "lambda<{}>:{}", lam_type.num_args(), id),
             Lit(lit) =>

@@ -24,7 +24,7 @@ fn main() {
         transform::expand_lam_body,
     ];
 
-    let exp = "(+ 1 2)";
+    let exp = "((lambda () (println (+ 1 2))))";
     if let Ok((_, mut r)) = parse::parse_exp(exp) {
         eprintln!("{:#?}", r);
 
@@ -37,7 +37,7 @@ fn main() {
             eprintln!("{0}\n{0:#?}", r);
         }
 
-        let cont = nodes::LExpr::BuiltinIdent(Cow::from("halt_func"));
+        let cont = nodes::LExpr::BuiltinIdent(Cow::from("halt_func"), nodes::LamType::OneArg);
 
         let r = transform::cps_transform_cont(r, cont, &mut context);
         eprintln!("\n\ncps_transform: {0}\n\n{0:#?}", r);

@@ -46,7 +46,7 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
             name,
             env: env.clone(),
         },
-        LExpr::BuiltinIdent(name) => LExEnv::BuiltinIdent(name),
+        LExpr::BuiltinIdent(name, arity) => LExEnv::BuiltinIdent(name, arity),
         LExpr::AppOne(box operator, box operand) => {
             let cont    = resolve_env_internal(operator, env, ctx);
             let operand = resolve_env_internal(operand,  env, ctx);
@@ -339,15 +339,20 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
         Var { name, env } => {
             gen_local_lookup(env.get(name).expect("Variable should exist in environment"))
         },
-        BuiltinIdent(name) => {
+        BuiltinIdent(name, arity) => {
             let result_var = ctx.gen_var();
+
+            let ctor_fun = match arity {
+                LamType::OneArg => "object_closure_one_new",
+                LamType::TwoArg => "object_closure_two_new",
+            };
 
             let closure = CStmt::Decl(
                 CDecl::Var {
                     name: result_var.clone(),
                     typ: CType::Struct(Cow::from("closure")),
                     init: Some(CExpr::FunCallOp {
-                        expr: box CExpr::Ident(Cow::from("object_closure_two_new")),
+                        expr: box CExpr::Ident(Cow::from(ctor_fun)),
                         ands: vec![
                             CExpr::Ident(Cow::from(format!("{}_env", name))),
                             CExpr::Ident(Cow::from(format!("{}_func", name))),
@@ -502,6 +507,8 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
 
     let (builtin_unops_envs, builtin_unops_vars): (Vec<_>, Vec<_>) = vec![
         make_builtin_unop(ctx, "halt_func"),
+        make_builtin_unop(ctx, "to_string_func"),
+        make_builtin_unop(ctx, "println_func"),
     ].into_iter().unzip();
 
     let envs = builtin_binops_envs.chain(builtin_unops_envs).collect();

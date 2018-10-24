@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use nodes::{LExpr, ExprLit};
+use nodes::{LExpr, ExprLit, LamType};
 
 // compiler transformation stage
 
@@ -74,15 +74,16 @@ pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
             App(box operator, operands)
         }
         Var(var) => {
-            var.as_ref();
             let builtin_name = match var.as_ref() {
+                "to_string" => "to_string_func",
+                "println" => "println_func",
                 "+" => "object_int_obj_add",
                 "-" => "object_int_obj_sub",
                 "*" => "object_int_obj_mul",
                 "/" => "object_int_obj_div",
                 _   => return Var(var),
             };
-            BuiltinIdent(Cow::from(builtin_name))
+            BuiltinIdent(Cow::from(builtin_name), LamType::TwoArg)
         },
         Lit(..) | BuiltinIdent(..) => expr,
         _ => unreachable!("Shouldn't be touching this yet."),
@@ -251,46 +252,27 @@ pub fn cps_transform_cont<'a>(
         LExpr::Lit(..) =>
             LExpr::AppOne(box cont, box cps_transform(expr, ctx)),
         LExpr::AppOne(box operator, box operand) => {
-            let operator_var: Cow<'a, str> = ctx.gen_ident("operator_var");
-            let operand_var: Cow<'a, str> = ctx.gen_ident("operand_var");
-            let rv_var: Cow<'a, str> = ctx.gen_ident("rv");
+            let rator_var: Cow<'a, str> = ctx.gen_ident("rator_var");
+            let rator_var_expr = LExpr::Var(rator_var.clone());
 
-            let new_cont = LExpr::LamOneOne(
-                rv_var.clone(),
-                box LExpr::AppOne(box cont, box LExpr::Var(rv_var)),
-            );
-
-            // The expression:
-            // (rator rand)
-            // Is transformed into:
-            // (T rator '(lambda (rator_var)
-            //             (T rand '(lambda (rand_var)
-            //                        (rator_var rand_var cont)))))
-            //
-
-            let inner_lam =
-                cps_transform_cont(
-                    operand,
-                    LExpr::LamOneOne(
-                        operand_var.clone(),
-                        box LExpr::AppOneCont(
-                            box LExpr::Var(operator_var.clone()),
-                            box LExpr::Var(operand_var.clone()),
-                            box new_cont,
-                        ),
-                    ),
-                    ctx,
-                );
-
+            let rand_var: Cow<'a, str> = ctx.gen_ident("rand_var");
+            let rand_var_expr = LExpr::Var(rand_var.clone());
 
             cps_transform_cont(
                 operator,
                 LExpr::LamOneOne(
-                    operator_var.clone(),
-                    box inner_lam,
-                ),
-                ctx,
-            )
+                    rator_var,
+                    box cps_transform_cont(
+                        operand,
+                        LExpr::LamOneOne(
+                            rand_var,
+                            box LExpr::AppOneCont(
+                                box rator_var_expr,
+                                box rand_var_expr,
+                                box cont
+                            )
+                        ), ctx)
+                ), ctx)
         }
         LExpr::AppOneCont(..) => unreachable!("This shouldn't be visited"),
         LExpr::Lam(..) | LExpr::App(..) | LExpr::LamOne(..) => unreachable!("These shouldn't exist here"),
@@ -305,18 +287,10 @@ pub fn cps_transform<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'
             let cont_var: Cow<'a, str> = ctx.gen_ident("cont_var");
             let cont_var_exp = LExpr::Var(cont_var.clone());
 
-            let rv_var: Cow<'a, str> = ctx.gen_ident("rv_var");
-            let rv_var_exp = LExpr::Var(rv_var.clone());
-
-            let cont = LExpr::LamOneOne(
-                rv_var.clone(),
-                box LExpr::AppOne(box cont_var_exp.clone(),  box rv_var_exp),
-            );
-
             LExpr::LamOneOneCont(
                 arg,
                 cont_var.clone(),
-                box cps_transform_cont(expr, cont, ctx),
+                box cps_transform_cont(expr, cont_var_exp, ctx),
             )
         }
         LExpr::LamOneOneCont(..) => panic!("Are we supposed to see this here?"),

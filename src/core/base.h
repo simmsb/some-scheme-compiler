@@ -31,11 +31,12 @@
 #define OBJECT_STRING_OBJ_NEW(S, NAME)                                  \
     struct object *(NAME);                                              \
     do {                                                                \
-        size_t len = strlen(S);                                         \
+        size_t len = strlen(S) + 1;                                     \
+        /* we keep the null byte */                                     \
         struct string_obj *new_obj = alloca(sizeof(struct string_obj) + len); \
         new_obj->base = object_base_new(OBJ_STR);                       \
         new_obj->len = len;                                             \
-        memcpy(&new_obj->buf, (S), len);                                \
+        memcpy((char *)&new_obj->buf, (S), len);                        \
         (NAME) = (struct object *)new_obj;                              \
     } while (0)
 
