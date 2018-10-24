@@ -181,12 +181,31 @@ impl CodegenCtx {
 }
 
 
+fn env_set_codegen<'a>(arg: Cow<'a, str>, env: &Env<'a>) -> CStmt<'a> {
+    let index = env.get(&arg).expect("env has argument");
+
+    CStmt::Expr(
+        CExpr::MacroCall {
+            name: "ADD_ENV".into(),
+            args: vec![
+                CExpr::LitUInt(index),
+                CExpr::Ident(arg.clone()),
+                CExpr::PreUnOp {
+                    op: "&".into(),
+                    ex: box CExpr::Ident("cow".into())
+                }
+            ]
+        }
+    )
+}
+
+
 pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
     use self::LExEnv::*;
 
     lams.iter().map(
         |lam| match lam {
-            Lam { arg, box expr, id, .. } => {
+            Lam { arg, box expr, env, id } => {
                 let mut supporting_stmts = Vec::new();
                 let mut ctx = CodegenCtx::default();
 
@@ -196,6 +215,9 @@ pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     (arg.clone(), CType::Ptr(box CType::Struct(Cow::from("object")))),
                     (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
                 ];
+
+                supporting_stmts.push(env_set_codegen(arg.clone(), &env));
+
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 
                 let mut body = Vec::new();
@@ -209,7 +231,7 @@ pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     body,
                 }
             },
-            LamCont { arg, cont, box expr, id, .. } => {
+            LamCont { arg, cont, box expr, env, id } => {
                 let mut supporting_stmts = Vec::new();
                 let mut ctx = CodegenCtx::default();
 
@@ -220,6 +242,9 @@ pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     (cont.clone(), CType::Ptr(box CType::Struct(Cow::from("object")))),
                     (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
                 ];
+
+                supporting_stmts.push(env_set_codegen(arg.clone(), &env));
+                supporting_stmts.push(env_set_codegen(cont.clone(), &env));
 
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 
