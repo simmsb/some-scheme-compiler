@@ -24,7 +24,7 @@ fn main() {
         transform::expand_lam_body,
     ];
 
-    let exp = "((lambda () (println (+ 1 2))))";
+    let exp = "((lambda () (println (println (+ 1 2)))))";
     if let Ok((_, mut r)) = parse::parse_exp(exp) {
         eprintln!("{:#?}", r);
 

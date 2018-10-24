@@ -93,6 +93,8 @@ char *obj_to_string_internal(struct object *val) {
   case OBJ_VOID:
     ALLOC_SPRINTF(res, "()");
     break;
+  default:
+    RUNTIME_ERROR("Unexpected object tag: %d", val->tag);
   }
 
   return res;
@@ -119,5 +121,5 @@ void println_func_func(struct object *val, struct object *cont,
 
   OBJECT_VOID_OBJ_NEW(temp_void);
 
-  call_closure_one(cont, (struct object *)&temp_void);
+  call_closure_one(cont, temp_void);
 }
