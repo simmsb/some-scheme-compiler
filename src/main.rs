@@ -5,6 +5,7 @@ extern crate nom;
 #[macro_use]
 extern crate derive_more;
 extern crate structopt;
+#[macro_use]
 extern crate failure;
 extern crate itertools;
 extern crate cc;
@@ -73,11 +74,15 @@ fn main() -> Result<(), Error> {
 
     let full_source = generate_program_source(&generated_source);
 
+    if opts.debug {
+        eprintln!("{}", full_source);
+    }
+
     let build_dir = generate_build_dir();
 
     insert_source_into_build_dir(&build_dir, &full_source);
 
-    let make_stdout = invoke_make(&build_dir);
+    let make_stdout = invoke_make(&build_dir)?;
 
     if opts.debug {
         eprintln!("{}", make_stdout);
@@ -93,13 +98,20 @@ fn copy_binary(tmp_dir: &TempDir, output_path: &PathBuf) {
     fs::copy(tmp_dir.path().join("compiled_result"), output_path).expect("failed copying compiled binary");
 }
 
-fn invoke_make(tmp_dir: &TempDir) -> String {
+fn invoke_make(tmp_dir: &TempDir) -> Result<String, Error> {
     let output = Command::new("make")
         .current_dir(tmp_dir.path())
         .output()
         .expect("Failed to build source");
 
-    String::from_utf8_lossy(&output.stdout).to_string()
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(format_err!("Make failed with exit code: {:?}\nstdout: {}\n\nstderr: {}",
+                        output.status,
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr)))
+    }
 }
 
 fn insert_source_into_build_dir(tmp_dir: &TempDir, source: &str) {
@@ -135,11 +147,14 @@ fn generate_program_source(src: &str) -> String {
 #include "builtin.h"
 "#, src, r#"
 int main() {
+  struct vector_env_elem_nexts *nexts = malloc(sizeof(struct vector_env_elem_nexts));
+  *nexts = vector_env_elem_nexts_new(0);
+
   struct env_elem base_env = {
     .base = object_base_new(OBJ_ENV),
     .ident_id = 0,
     .val = NULL,
-    .nexts = vector_env_elem_nexts_new(0),
+    .nexts = nexts,
   };
 
   struct closure initial_closure = object_closure_one_new(0, main_lambda, &base_env);

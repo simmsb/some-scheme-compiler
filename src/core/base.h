@@ -7,19 +7,21 @@
 #include "common.h"
 #include "vec.h"
 
-#define ADD_ENV(IDENT_ID, VAL, HEAD_PTR)                            \
-    do {                                                            \
-        struct env_elem *new_env = alloca(sizeof(struct env_elem)); \
-        memcpy(new_env,                                             \
-               &(struct env_elem){.base = object_base_new(OBJ_ENV), \
-                       .ident_id = (IDENT_ID),                      \
-                       .val = (VAL),                                \
-                       .prev = *(HEAD_PTR),                         \
-                       .nexts = vector_env_elem_nexts_new(0)},      \
-               sizeof(struct env_elem));                            \
-                                                                    \
-        vector_env_elem_nexts_push(&(*HEAD_PTR)->nexts, new_env);   \
-        (*HEAD_PTR) = new_env;                                      \
+#define ADD_ENV(IDENT_ID, VAL, HEAD_PTR)                                \
+    do {                                                                \
+        struct env_elem *new_env = alloca(sizeof(struct env_elem));     \
+        struct vector_env_elem_nexts *nexts = malloc(sizeof(struct vector_env_elem_nexts)); \
+        *nexts = vector_env_elem_nexts_new(0);                          \
+        memcpy(new_env,                                                 \
+               &(struct env_elem){.base = object_base_new(OBJ_ENV),     \
+                       .ident_id = (IDENT_ID),                          \
+                       .val = (VAL),                                    \
+                       .prev = *(HEAD_PTR),                             \
+                       .nexts = nexts},                                 \
+               sizeof(struct env_elem));                                \
+                                                                        \
+        vector_env_elem_nexts_push((*HEAD_PTR)->nexts, new_env);       \
+        (*HEAD_PTR) = new_env;                                          \
     } while (0)
 
 #define NUM_ARGS(...) (sizeof((size_t[]){__VA_ARGS__}) / sizeof(size_t))
@@ -58,7 +60,7 @@
 
 DEFINE_VECTOR(struct env_elem *, env_elem_nexts)
 
-enum closure_size {
+    enum closure_size {
     CLOSURE_ONE = 0,
     CLOSURE_TWO,
 };
@@ -86,7 +88,7 @@ struct env_elem {
     const size_t ident_id;
     struct object *val; // shared
     struct env_elem *prev;
-    struct vector_env_elem_nexts nexts;
+    struct vector_env_elem_nexts *nexts;
 };
 
 struct closure {

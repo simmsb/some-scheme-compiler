@@ -20,7 +20,7 @@ static jmp_buf setjmp_env_buf;
 
 void call_closure_one(struct object *rator, struct object *rand) {
     if (rator->tag != OBJ_CLOSURE) {
-        RUNTIME_ERROR("Called object was not a closure");
+        RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator, rator->tag);
     }
 
     struct closure *closure = (struct closure *)rator;
@@ -46,7 +46,7 @@ void call_closure_one(struct object *rator, struct object *rand) {
 
 void call_closure_two(struct object *rator, struct object *rand, struct object *cont) {
     if (rator->tag != OBJ_CLOSURE) {
-        RUNTIME_ERROR("Called object was not a closure");
+        RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator, rator->tag);
     }
 
     struct closure *closure = (struct closure *)rator;
@@ -97,9 +97,13 @@ static void *stack_ptr(void) { return __builtin_frame_address(0); }
  * Are we above the stack limit
  */
 static bool stack_check(void) {
-    static size_t stack_buffer = 1024 * 32;
-    return (uintptr_t)stack_ptr() >
-           (uintptr_t)(stack_initial - get_stack_limit() - stack_buffer);
+    // buffer area at the end of the stack since idk how accurate this is
+    // so reserve 256K for anything we might do after getting to the 'limit'
+    static size_t stack_buffer = 1024 * 256;
+    uintptr_t stack_ptr_val = (uintptr_t)stack_ptr();
+    uintptr_t stack_end_val = (uintptr_t)(stack_initial - get_stack_limit() + stack_buffer);
+
+    return stack_ptr_val > stack_end_val;
 }
 
 void scheme_start(struct thunk *initial_thunk) {
@@ -112,6 +116,8 @@ void scheme_start(struct thunk *initial_thunk) {
     // current_thunk will be set and we will just trampoline into the new
     // thunk
     setjmp(setjmp_env_buf);
+
+    printf("bouncing\n");
 
     if (current_thunk->closr->size == CLOSURE_ONE) {
         struct closure *closr = current_thunk->closr;

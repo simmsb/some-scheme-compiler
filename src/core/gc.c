@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <string.h>
+#include <assert.h>
 
 #include "base.h"
 #include "vec.h"
@@ -126,23 +127,31 @@ void mark_closure(struct object *obj, struct gc_context *ctx) {
 }
 
 
+void queue_ptr_toupdate_pair_enqueue_checked(struct queue_ptr_toupdate_pair *queue, struct ptr_toupdate_pair elem) {
+    assert(elem.on_stack != NULL);
+    assert(elem.toupdate != NULL);
+
+    queue_ptr_toupdate_pair_enqueue(queue, elem);
+}
+
+
 struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
     struct env_elem *env = (struct env_elem *)obj;
 
-    if (!obj->on_stack) {
+    if (obj->on_stack) {
         struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
         memcpy(heap_env, obj, sizeof(struct env_elem));
         env = heap_env;
     }
 
-    queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate,
+    queue_ptr_toupdate_pair_enqueue_checked(&ctx->pointers_toupdate,
                                     (struct ptr_toupdate_pair){
                                         (struct object **)&env->val,
                                         (struct object *)env->val});
 
-    for (size_t i=0; i<env->nexts.length; i++) {
-        struct env_elem **env_ptr = vector_env_elem_nexts_index_ptr(&env->nexts, i);
-        queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, (struct ptr_toupdate_pair){(struct object **)env_ptr, (struct object *)*env_ptr});
+    for (size_t i=0; i<env->nexts->length; i++) {
+        struct env_elem **env_ptr = vector_env_elem_nexts_index_ptr(env->nexts, i);
+        queue_ptr_toupdate_pair_enqueue_checked(&ctx->pointers_toupdate, (struct ptr_toupdate_pair){(struct object **)env_ptr, (struct object *)*env_ptr});
     }
     return (struct object *)env;
 }
@@ -155,8 +164,8 @@ void mark_env(struct object *obj, struct gc_context *ctx) {
     // such that the entire tree of nodes stays in memory
     maybe_mark_grey_and_queue(ctx, (struct object *)env->prev);
 
-    for (size_t i=0; i < env->nexts.length; i++) {
-        struct object *env_ptr = (struct object *)vector_env_elem_nexts_index(&env->nexts, i);
+    for (size_t i=0; i < env->nexts->length; i++) {
+        struct object *env_ptr = (struct object *)vector_env_elem_nexts_index(env->nexts, i);
         maybe_mark_grey_and_queue(ctx, env_ptr);
     }
     maybe_mark_grey_and_queue(ctx, env->val);
@@ -173,32 +182,33 @@ void free_env(struct object *obj) {
     // a -> c
     //  \-> d
 
-    size_t index_in_parent = vector_env_elem_nexts_indexof(&env->prev->nexts, env);
-    if (index_in_parent >= env->prev->nexts.length) {
+    size_t index_in_parent = vector_env_elem_nexts_indexof(env->prev->nexts, env);
+    if (index_in_parent >= env->prev->nexts->length) {
         RUNTIME_ERROR("Child environment not a member of it's parent's child array!");
     }
 
     // remove ourselves from the array of children in the parent env node
-    vector_env_elem_nexts_remove(&env->prev->nexts, index_in_parent);
+    vector_env_elem_nexts_remove(env->prev->nexts, index_in_parent);
 
-    for (size_t i=0; i < env->nexts.length; i++) {
-        struct env_elem *child_ptr = vector_env_elem_nexts_index(&env->nexts, i);
+    for (size_t i=0; i < env->nexts->length; i++) {
+        struct env_elem *child_ptr = vector_env_elem_nexts_index(env->nexts, i);
 
         // make the node that would be (a) now reference each of (b)'s children
-        vector_env_elem_nexts_push(&env->prev->nexts, child_ptr);
+        vector_env_elem_nexts_push(env->prev->nexts, child_ptr);
 
         // make each of (b)'s children reference (a)
         child_ptr->prev = env->prev;
     }
 
-    vector_env_elem_nexts_free(&env->nexts);
+    vector_env_elem_nexts_free(env->nexts);
+    free(env->nexts);
 }
 
 
 struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
     struct int_obj *intobj = (struct int_obj *)obj;
 
-    if (!obj->on_stack) {
+    if (obj->on_stack) {
         struct int_obj *heap_intobj = gc_malloc(sizeof(struct int_obj));
         memcpy(heap_intobj, intobj, sizeof(struct int_obj));
         intobj = heap_intobj;
@@ -222,7 +232,7 @@ struct object *toheap_void_obj(struct object *obj, struct gc_context *ctx) {
 struct object *toheap_string_obj(struct object *obj, struct gc_context *ctx) {
     struct string_obj *strobj = (struct string_obj *)obj;
 
-    if (!obj->on_stack) {
+    if (obj->on_stack) {
         size_t total_size = sizeof(struct string_obj) + strobj->len;
 
         struct string_obj *heap_stringobj = gc_malloc(total_size);
@@ -259,6 +269,8 @@ static void gc_mark_obj(struct gc_context *ctx, struct object *obj) {
 
 // Moves all live objects on the stack over to the heap
 struct object *gc_toheap(struct gc_context *ctx, struct object *obj) {
+    assert(obj != NULL);
+
     // if we've already copied this object,
     // we know that anything it points to must also be sorted
     struct object *maybe_copied = ptr_bst_get(&ctx->updated_pointers, obj);
@@ -291,11 +303,17 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
 
     switch (thnk->closr->size) {
         case CLOSURE_ONE:
-            thnk->one.rand = gc_toheap(ctx, thnk->one.rand);
+            if (thnk->one.rand != NULL) {
+                thnk->one.rand = gc_toheap(ctx, thnk->one.rand);
+            }
             break;
         case CLOSURE_TWO:
-            thnk->two.rand = gc_toheap(ctx, thnk->two.rand);
-            thnk->two.cont = gc_toheap(ctx, thnk->two.cont);
+            if (thnk->two.rand != NULL) {
+                thnk->two.rand = gc_toheap(ctx, thnk->two.rand);
+            }
+            if (thnk->two.cont != NULL) {
+                thnk->two.cont = gc_toheap(ctx, thnk->two.cont);
+            }
             break;
     }
 
@@ -309,6 +327,9 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
             *to_update.toupdate = maybe_copied;
         } else {
             // we haven't seen this yet, perform a copy and update
+
+            assert(to_update.on_stack != NULL);
+
             struct object *on_heap = gc_toheap(ctx, to_update.on_stack);
             ptr_bst_insert(&ctx->updated_pointers, (struct ptr_pair){to_update.on_stack, on_heap});
 

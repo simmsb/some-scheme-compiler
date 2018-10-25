@@ -5,14 +5,15 @@
   do {                                                                         \
     fprintf(stderr, "Runtime Error (%s:%d): ", __func__, __LINE__);            \
     fprintf(stderr, F "\n" __VA_OPT__(, ) __VA_ARGS__);                        \
+    *(volatile int *)0xcafebabe; \
     exit(1);                                                                   \
   } while (0)
 
 #ifdef DEBUG
 #define DEBUG_LOG(F, ...)                                                      \
   do {                                                                         \
-    printf("DEBUG (%s:%d): ", __func__, __LINE__);                             \
-    printf(stderr, (F "\n")__VA_OPT__(, ) __VA_ARGS__);                        \
+    fprintf(stderr, "DEBUG (%s:%d): ", __func__, __LINE__);                    \
+    fprintf(stderr, (F "\n")__VA_OPT__(, ) __VA_ARGS__);                       \
   } while (0)
 #else
 #define DEBUG_LOG(...)                                                         \
