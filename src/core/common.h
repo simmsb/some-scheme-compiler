@@ -5,7 +5,6 @@
   do {                                                                         \
     fprintf(stderr, "Runtime Error (%s:%d): ", __func__, __LINE__);            \
     fprintf(stderr, F "\n" __VA_OPT__(, ) __VA_ARGS__);                        \
-    *(volatile int *)0xffff; \
     exit(1);                                                                   \
   } while (0)
 

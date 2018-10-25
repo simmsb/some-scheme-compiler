@@ -4,7 +4,7 @@ use nom;
 use nodes::{LExpr, ExprLit};
 
 fn ident_char(chr: char) -> bool {
-    !" ()\n\r".contains(chr)
+    !" ()\n\r\"\'".contains(chr)
 }
 
 pub fn parse_int(input: &str) -> nom::IResult<&str, LExpr> {
@@ -23,7 +23,17 @@ pub fn parse_var(input: &str) -> nom::IResult<&str, LExpr> {
     map!(input, ws!(parse_ident), LExpr::Var)
 }
 
-#[allow(cyclomatic_complexity)]
+pub fn parse_str(input: &str) -> nom::IResult<&str, LExpr> {
+    map!(
+        input,
+        delimited!(
+            tag!("\""),
+            escaped!(is_not!("\""), '\\', one_of!("\"n\\")),
+            tag!("\"")),
+        |s| LExpr::Lit(ExprLit::StringLit(s.into())))
+}
+
+#[allow(clippy::cyclomatic_complexity)]
 fn parse_lam(input: &str) -> nom::IResult<&str, LExpr> {
     do_parse!(input,
         char!('(') >>
@@ -49,7 +59,7 @@ pub fn parse_app(input: &str) -> nom::IResult<&str, LExpr> {
 }
 
 pub fn parse_exp(input: &str) -> nom::IResult<&str, LExpr> {
-    alt_complete!(input, parse_int | parse_var | parse_lam | parse_app)
+    alt_complete!(input, parse_int | parse_str | parse_var | parse_lam | parse_app)
 }
 
 

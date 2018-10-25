@@ -1,12 +1,12 @@
 TESTS = test_queue test_tree test_base
 
-default: test_build
+default: compiled_result
 
-test_build.o : test_build.c base.h builtin.h
-	$(CC) $(CFLAGS) -c test_build.c -o test_build.o
+compiled_result.o : compiled_result.c base.h builtin.h
+	$(CC) $(CFLAGS) -c compiled_result.c -o compiled_result.o
 
-test_build : test_build.o base.o builtin.o gc.o tree.o
-	$(CC) $(CFLAGS) test_build.o gc.o base.o builtin.o tree.o -o test_build
+compiled_result : compiled_result.o base.o builtin.o gc.o tree.o
+	$(CC) $(CFLAGS) compiled_result.o gc.o base.o builtin.o tree.o -o compiled_result
 
 base.o : base.c base.h gc.h queue.h tree.h vec.h common.h
 	$(CC) $(CFLAGS) -c base.c -o base.o
@@ -42,8 +42,8 @@ clean :
 	-rm -f gc.o
 	-rm -f tree.o
 	-rm -f builtin.o
-	-rm -f test_build.o
+	-rm -f compiled_result.o
 	-rm -f test_tree
 	-rm -f test_queue
 	-rm -f test_base
-	-rm -f test_build
+	-rm -f compiled_result

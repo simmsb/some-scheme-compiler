@@ -181,15 +181,15 @@ impl CodegenCtx {
 }
 
 
-fn env_set_codegen<'a>(arg: Cow<'a, str>, env: &Env<'a>) -> CStmt<'a> {
-    let index = env.get(&arg).expect("env has argument");
+fn env_set_codegen<'a>(arg: &'a str, env: &Env<'a>) -> CStmt<'a> {
+    let index = env.get(arg).expect("env has argument");
 
     CStmt::Expr(
         CExpr::MacroCall {
             name: "ADD_ENV".into(),
             args: vec![
                 CExpr::LitUInt(index),
-                CExpr::Ident(arg.clone()),
+                CExpr::Ident(arg.into()),
                 CExpr::PreUnOp {
                     op: "&".into(),
                     ex: box CExpr::Ident("env".into())
@@ -200,7 +200,7 @@ fn env_set_codegen<'a>(arg: Cow<'a, str>, env: &Env<'a>) -> CStmt<'a> {
 }
 
 
-pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
+pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
     use self::LExEnv::*;
 
     lams.iter().map(
@@ -216,7 +216,7 @@ pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
                 ];
 
-                supporting_stmts.push(env_set_codegen(arg.clone(), &env));
+                supporting_stmts.push(env_set_codegen(&arg, &env));
 
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 
@@ -243,8 +243,8 @@ pub fn lambda_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
                 ];
 
-                supporting_stmts.push(env_set_codegen(arg.clone(), &env));
-                supporting_stmts.push(env_set_codegen(cont.clone(), &env));
+                supporting_stmts.push(env_set_codegen(&arg, &env));
+                supporting_stmts.push(env_set_codegen(&cont, &env));
 
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 
@@ -337,7 +337,7 @@ pub fn codegen<'a>(expr: &LExEnv<'a>, ctx: &mut CodegenCtx, supporting_stmts: &m
             }
         },
         Var { name, env } => {
-            gen_local_lookup(env.get(name).expect("Variable should exist in environment"))
+            gen_local_lookup(env.get(name).expect(&format!("Variable {} should exist in environment", name)))
         },
         BuiltinIdent(name, arity) => {
             let result_var = ctx.gen_var();
