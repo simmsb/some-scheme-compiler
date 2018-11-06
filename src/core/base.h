@@ -9,6 +9,10 @@
 
 #define ADD_ENV(IDENT_ID, VAL, HEAD_PTR)                                \
     do {                                                                \
+                                                                        \
+        if ((VAL)->tag > OBJ_STR) {                                     \
+            RUNTIME_ERROR("Invalid object tag in env: tag: %d, id: %ld from env %p\n", (VAL)->tag, (IDENT_ID), (void *)*(HEAD_PTR)); \
+        }                                                               \
         struct env_elem *new_env = alloca(sizeof(struct env_elem));     \
         struct vector_env_elem_nexts *nexts = malloc(sizeof(struct vector_env_elem_nexts)); \
         *nexts = vector_env_elem_nexts_new(0);                          \
@@ -20,7 +24,10 @@
                        .nexts = nexts},                                 \
                sizeof(struct env_elem));                                \
                                                                         \
-        vector_env_elem_nexts_push((*HEAD_PTR)->nexts, new_env);       \
+        TOUCH_OBJECT(VAL, "add_env");                                              \
+        fprintf(stderr, "adding tag: %d, id: %ld to env %p\n", (VAL)->tag, (IDENT_ID), (void *)*(HEAD_PTR)); \
+                                                                        \
+        vector_env_elem_nexts_push((*HEAD_PTR)->nexts, new_env);        \
         (*HEAD_PTR) = new_env;                                          \
     } while (0)
 
@@ -39,6 +46,7 @@
         new_obj->base = object_base_new(OBJ_STR);                       \
         new_obj->len = len;                                             \
         memcpy((char *)&new_obj->buf, (S), len);                        \
+        TOUCH_OBJECT(new_obj, "string_obj_new");                        \
         (NAME) = (struct object *)new_obj;                              \
     } while (0)
 
@@ -47,6 +55,7 @@
     do {                                                            \
         struct int_obj *new_obj = alloca(sizeof(struct int_obj));   \
         *new_obj = object_int_obj_new((n));                         \
+        TOUCH_OBJECT(new_obj, "int_obj_new");                        \
         (NAME) = (struct object *)new_obj;                          \
     } while(0)
 
@@ -55,14 +64,27 @@
     do {                                                            \
         struct void_obj *new_obj = alloca(sizeof(struct void_obj)); \
         *new_obj = object_void_obj_new();                           \
+        TOUCH_OBJECT(new_obj, "void_obj_new");                        \
         (NAME) = (struct object *)new_obj;                          \
     } while (0)
 
+#ifdef DEBUG
+#define TOUCH_OBJECT(OBJ, S)                                            \
+    do {                                                                \
+        fprintf(stderr, "touching object %p tag: %d, last touched by %s: (%s:%d:%s)\n", (void *)(OBJ), ((struct object *)(OBJ))->tag, ((struct object *)(OBJ))->last_touched_by, __func__, __LINE__, (S)); \
+        ALLOC_SPRINTF(((struct object *)(OBJ))->last_touched_by, "(%s:%d:%s)", __func__, __LINE__, (S)); \
+    } while (0)
+#else
+#define TOUCH_OBJECT(OBJ, S)                       \
+    do {                                        \
+    } while (0)
+#endif // DEBUG
+
 DEFINE_VECTOR(struct env_elem *, env_elem_nexts)
 
-    enum closure_size {
-    CLOSURE_ONE = 0,
-    CLOSURE_TWO,
+enum closure_size {
+  CLOSURE_ONE = 0,
+  CLOSURE_TWO,
 };
 
 enum object_tag {
@@ -79,6 +101,9 @@ struct object {
     enum object_tag tag;
     enum gc_mark_type mark;
     bool on_stack;
+#ifdef DEBUG
+    char *last_touched_by;
+#endif
 };
 
 // builtin objects

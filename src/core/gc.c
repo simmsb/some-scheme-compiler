@@ -75,6 +75,7 @@ struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
     struct closure *clos = (struct closure *)obj;
 
     if (obj->on_stack) {
+        TOUCH_OBJECT(obj, "toheap_closure");
         struct closure *heap_clos = gc_malloc(sizeof(struct closure));
         memcpy(heap_clos, obj, sizeof(struct closure));
         clos = heap_clos;
@@ -139,7 +140,10 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
     struct env_elem *env = (struct env_elem *)obj;
 
     if (obj->on_stack) {
+        TOUCH_OBJECT(obj, "toheap_env");
         struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
+        fprintf(stderr, "moving env to heap %p -> %p\n", (void *)obj, (void *)heap_env);
+
         memcpy(heap_env, obj, sizeof(struct env_elem));
         env = heap_env;
     }
@@ -209,6 +213,7 @@ struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
     struct int_obj *intobj = (struct int_obj *)obj;
 
     if (obj->on_stack) {
+        TOUCH_OBJECT(obj, "toheap_int");
         struct int_obj *heap_intobj = gc_malloc(sizeof(struct int_obj));
         memcpy(heap_intobj, intobj, sizeof(struct int_obj));
         intobj = heap_intobj;
@@ -220,6 +225,7 @@ struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
 
 struct object *toheap_void_obj(struct object *obj, struct gc_context *ctx) {
     if (!obj->on_stack) {
+        TOUCH_OBJECT(obj, "toheap_void");
         struct int_obj *heap_voidobj = gc_malloc(sizeof(struct void_obj));
         memcpy(heap_voidobj, obj, sizeof(struct void_obj));
         obj = (struct object *)heap_voidobj;
@@ -233,6 +239,7 @@ struct object *toheap_string_obj(struct object *obj, struct gc_context *ctx) {
     struct string_obj *strobj = (struct string_obj *)obj;
 
     if (obj->on_stack) {
+        TOUCH_OBJECT(obj, "toheap_string");
         size_t total_size = sizeof(struct string_obj) + strobj->len;
 
         struct string_obj *heap_stringobj = gc_malloc(total_size);

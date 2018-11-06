@@ -1,5 +1,6 @@
 #include "builtin.h"
 #include "base.h"
+#include "common.h"
 
 struct int_obj object_int_obj_add(struct object *lhs, struct object *rhs) {
   if (lhs->tag != OBJ_INT)
@@ -65,14 +66,6 @@ MAKE_TWO_ARG_FROM_BUILTIN(object_int_obj_div, struct int_obj,
 void halt_func_func(struct object *cont, struct env_elem *env) {
   halt_func(cont);
 }
-
-#define ALLOC_SPRINTF(S, ...)                                                  \
-  do {                                                                         \
-    size_t needed = snprintf(NULL, 0, __VA_ARGS__) + 1;                        \
-    char *buf = malloc(needed);                                                \
-    sprintf(buf, __VA_ARGS__);                                                 \
-    (S) = buf;                                                                 \
-  } while (0)
 
 char *obj_to_string_internal(struct object *val) {
   char *res;
