@@ -8,7 +8,6 @@ extern crate structopt;
 #[macro_use]
 extern crate failure;
 extern crate itertools;
-extern crate cc;
 extern crate tempdir;
 #[macro_use]
 extern crate include_dir;
@@ -82,7 +81,13 @@ fn main() -> Result<(), Error> {
 
     insert_source_into_build_dir(&build_dir, &full_source);
 
-    let make_stdout = invoke_make(&build_dir)?;
+    let make_stdout = match invoke_make(&build_dir) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{}", e);
+            return Ok(());
+        }
+    };
 
     if opts.debug {
         eprintln!("{}", make_stdout);

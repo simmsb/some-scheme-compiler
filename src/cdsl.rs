@@ -242,6 +242,7 @@ impl<'a> CType<'a> {
             match typ_o {
                 Ptr(to) => typ = Some(to),
                 Arr(of, ..) => typ = Some(of),
+                Static(of) => typ = Some(of),
                 _ => (),
             };
         }

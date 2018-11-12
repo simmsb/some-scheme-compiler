@@ -4,8 +4,7 @@
 #define RUNTIME_ERROR(F, ...)                                                  \
   do {                                                                         \
     fprintf(stderr, "Runtime Error (%s:%d): ", __func__, __LINE__);            \
-    fprintf(stderr, F "\n" __VA_OPT__(, ) __VA_ARGS__);                        \
-    *(volatile int *)0xcafebabe; \
+    fprintf(stderr, F "\n", ##__VA_ARGS__);                                    \
     exit(1);                                                                   \
   } while (0)
 
@@ -13,7 +12,7 @@
 #define DEBUG_LOG(F, ...)                                                      \
   do {                                                                         \
     fprintf(stderr, "DEBUG (%s:%d): ", __func__, __LINE__);                    \
-    fprintf(stderr, (F "\n")__VA_OPT__(, ) __VA_ARGS__);                       \
+    fprintf(stderr, (F "\n"), ##__VA_ARGS__);                                  \
   } while (0)
 #else
 #define DEBUG_LOG(...)                                                         \
@@ -30,7 +29,6 @@
     sprintf(buf, __VA_ARGS__);                                                 \
     (S) = buf;                                                                 \
   } while (0)
-
 
 #ifdef DEBUG
 #define DEBUG_FPRINTF(...) fprintf(__VA_ARGS__)
