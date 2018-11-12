@@ -103,7 +103,7 @@ static void *stack_ptr(void) { return __builtin_frame_address(0); }
 static bool stack_check(void) {
   // buffer area at the end of the stack since idk how accurate this is
   // so reserve 256K for anything we might do after getting to the 'limit'
-  static size_t stack_buffer = 1024 * 1024 * 7; // 256;
+  static size_t stack_buffer = 1024 * 256;
   uintptr_t stack_ptr_val = (uintptr_t)stack_ptr();
   uintptr_t stack_end_val =
       (uintptr_t)(stack_initial - get_stack_limit() + stack_buffer);
