@@ -25,7 +25,7 @@
                sizeof(struct env_elem));                                \
                                                                         \
         TOUCH_OBJECT(VAL, "add_env");                                              \
-        fprintf(stderr, "adding tag: %d, id: %ld to env %p\n", (VAL)->tag, (IDENT_ID), (void *)*(HEAD_PTR)); \
+        DEBUG_FPRINTF(stderr, "adding tag: %d, id: %ld to env %p\n", (VAL)->tag, (IDENT_ID), (void *)*(HEAD_PTR)); \
                                                                         \
         vector_env_elem_nexts_push((*HEAD_PTR)->nexts, new_env);        \
         (*HEAD_PTR) = new_env;                                          \

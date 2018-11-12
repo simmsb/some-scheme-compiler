@@ -9,6 +9,7 @@
 #include "base.h"
 #include "gc.h"
 #include "vec.h"
+#include "common.h"
 
 MAKE_VECTOR(struct env_elem *, env_elem_nexts)
 
@@ -121,7 +122,7 @@ void scheme_start(struct thunk *initial_thunk) {
   // thunk
   setjmp(setjmp_env_buf);
 
-  printf("bouncing\n");
+  DEBUG_FPRINTF(stderr, "bouncing\n");
 
   if (current_thunk->closr->size == CLOSURE_ONE) {
     struct closure *closr = current_thunk->closr;
@@ -158,7 +159,7 @@ struct object object_base_new(enum object_tag tag) {
       .mark = WHITE,
       .on_stack = true,
 #ifdef DEBUG
-      .last_touched_by = NULL,
+      .last_touched_by = "object_init",
 #endif
   };
 }
@@ -195,9 +196,15 @@ struct void_obj object_void_obj_new(void) {
 }
 
 struct object *env_get(size_t ident_id, struct env_elem *env) {
+#ifdef DEBUG
+  fprintf(stderr, "looking for %ld in envs:\n", ident_id);
+#endif
   while (env != NULL) {
+#ifdef DEBUG
+    fprintf(stderr, "%p\n", (void *)env);
+#endif
     if (env->ident_id == ident_id) {
-      fprintf(stderr, "getting %p tag: %d, id: %ld from env %p\n", (void *)env->val, env->val->tag,
+      DEBUG_FPRINTF(stderr, "getting %p tag: %d, id: %ld from env %p\n", (void *)env->val, env->val->tag,
               ident_id, (void *)env);
 
       if (env->val->tag > OBJ_STR) {

@@ -30,3 +30,10 @@
     sprintf(buf, __VA_ARGS__);                                                 \
     (S) = buf;                                                                 \
   } while (0)
+
+
+#ifdef DEBUG
+#define DEBUG_FPRINTF(...) fprintf(__VA_ARGS__)
+#else
+#define DEBUG_FPRINTF(...) (void)0
+#endif // DEBUG
