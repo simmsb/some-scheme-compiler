@@ -46,6 +46,7 @@ pub enum CType<'a> {
     Struct(Cow<'a, str>),
     Union(Cow<'a, str>),
     Other(Cow<'a, str>),
+    Static(Box<CType<'a>>),
     Void,
 }
 
@@ -234,6 +235,7 @@ impl<'a> CType<'a> {
                 Struct(tname) => format!("struct {} {}", tname, gen),
                 Union(tname) => format!("union {} {}", tname, gen),
                 Other(tname) => format!("{} {}", tname, gen),
+                Static(..) => format!("static {}", gen),
                 Void => format!("void {}", gen),
             };
 

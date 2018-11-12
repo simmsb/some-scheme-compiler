@@ -226,7 +226,7 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
 
                 CDecl::Fun {
                     name: Cow::from(name),
-                    typ: CType::Void,
+                    typ: CType::Static(box CType::Void),
                     args,
                     body,
                 }
@@ -254,7 +254,7 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
 
                 CDecl::Fun {
                     name: Cow::from(name),
-                    typ: CType::Void,
+                    typ: CType::Static(box CType::Void),
                     args,
                     body,
                 }
@@ -280,7 +280,7 @@ pub fn lambda_proto_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
 
                 CDecl::FunProto {
                     name: Cow::from(name),
-                    typ: CType::Void,
+                    typ: CType::Static(box CType::Void),
                     args,
                 }
             },
@@ -295,7 +295,7 @@ pub fn lambda_proto_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
 
                 CDecl::FunProto {
                     name: Cow::from(name),
-                    typ: CType::Void,
+                    typ: CType::Static(box CType::Void),
                     args,
                 }
             },
