@@ -10,6 +10,7 @@
 #include "gc.h"
 #include "vec.h"
 #include "common.h"
+#include "builtin.h"
 
 MAKE_VECTOR(struct env_elem *, env_elem_nexts)
 
@@ -73,9 +74,29 @@ void call_closure_two(struct object *rator, struct object *rand,
   }
 }
 
-struct void_obj halt_func(struct object *inp) {
+static void print_env(struct env_elem *env, int indent) {
+  if (env->val != NULL) {
+    char *val = obj_to_string_internal(env->val);
+    printf("%*s%s\n", indent, "", val);
+    free(val);
+  }
+
+  for (size_t i=0; i < env->nexts->length; i++) {
+    print_env(vector_env_elem_nexts_index(env->nexts, i), indent + 1);
+  }
+}
+
+struct void_obj halt_func(struct object *inp, struct env_elem *env) {
   (void)inp; // mmh
-  printf("Halt");
+  puts("Halt");
+
+  struct env_elem *env_base = env;
+  while (env_base->prev != NULL) {
+    env_base = env_base->prev;
+  }
+
+  print_env(env_base, 0);
+
   exit(0);
 
   // unreachable

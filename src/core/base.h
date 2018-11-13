@@ -172,7 +172,7 @@ struct thunk {
 
 void call_closure_one(struct object *, struct object *);
 void call_closure_two(struct object *, struct object *, struct object *);
-struct void_obj halt_func(struct object *);
+struct void_obj halt_func(struct object *, struct env_elem *);
 void scheme_start(struct thunk *);
 void run_minor_gc(struct thunk *);
 

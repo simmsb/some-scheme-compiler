@@ -64,7 +64,7 @@ MAKE_TWO_ARG_FROM_BUILTIN(object_int_obj_div, struct int_obj,
                           object_int_obj_div_env, object_int_obj_div_env_2)
 
 void halt_func_func(struct object *cont, struct env_elem *env) {
-  halt_func(cont);
+  halt_func(cont, env);
 }
 
 char *obj_to_string_internal(struct object *val) {

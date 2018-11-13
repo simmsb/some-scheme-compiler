@@ -94,4 +94,5 @@ DEFINE_BUILTIN_VAR(println_func_param);
 DEFINE_BUILTIN_ENV(println_func_env);
 void println_func_func(struct object *, struct object *, struct env_elem *);
 
+char *obj_to_string_internal(struct object *);
 #endif // SOMESCHEME_BUILTIN_H
