@@ -3,11 +3,11 @@
 #include <string.h>
 
 #include "base.h"
+#include "common.h"
 #include "gc.h"
 #include "queue.h"
 #include "tree.h"
 #include "vec.h"
-#include "common.h"
 
 MAKE_VECTOR(struct object *, gc_heap_nodes)
 MAKE_VECTOR(size_t, size_t)
@@ -121,12 +121,18 @@ void mark_closure(struct object *obj, struct gc_context *ctx) {
   maybe_mark_grey_and_queue(ctx, &clos->env->base);
 }
 
-void queue_ptr_toupdate_pair_enqueue_checked(
-    struct queue_ptr_toupdate_pair *queue, struct ptr_toupdate_pair elem) {
+void queue_ptr_toupdate_pair_enqueue_checked(struct gc_context *ctx,
+                                             struct ptr_toupdate_pair elem) {
   assert(elem.on_stack != NULL);
   assert(elem.toupdate != NULL);
 
-  queue_ptr_toupdate_pair_enqueue(queue, elem);
+  struct object *maybe_copied = ptr_bst_get(&ctx->updated_pointers, elem.on_stack);
+  if (maybe_copied != NULL) {
+    *elem.toupdate = maybe_copied;
+    return;
+  }
+
+  queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, elem);
 }
 
 struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
@@ -136,7 +142,7 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
     TOUCH_OBJECT(obj, "toheap_env");
     struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
     DEBUG_FPRINTF(stderr, "moving env to heap %p -> %p\n", (void *)obj,
-            (void *)heap_env);
+                  (void *)heap_env);
 
     memcpy(heap_env, obj, sizeof(struct env_elem));
     env = heap_env;
@@ -146,25 +152,22 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
   }
 
   if (env->val != NULL) {
-      queue_ptr_toupdate_pair_enqueue_checked(
-          &ctx->pointers_toupdate,
-          (struct ptr_toupdate_pair){(struct object **)&env->val,
-                  (struct object *)env->val});
+    queue_ptr_toupdate_pair_enqueue_checked(
+        ctx, (struct ptr_toupdate_pair){(struct object **)&env->val,
+                                        (struct object *)env->val});
   }
 
   if (env->prev != NULL) {
-      queue_ptr_toupdate_pair_enqueue_checked(
-          &ctx->pointers_toupdate,
-          (struct ptr_toupdate_pair){(struct object **)&env->prev,
-                  (struct object *)env->prev});
+    queue_ptr_toupdate_pair_enqueue_checked(
+        ctx, (struct ptr_toupdate_pair){(struct object **)&env->prev,
+                                        (struct object *)env->prev});
   }
 
   for (size_t i = 0; i < env->nexts->length; i++) {
     struct env_elem **env_ptr = vector_env_elem_nexts_index_ptr(env->nexts, i);
     queue_ptr_toupdate_pair_enqueue_checked(
-        &ctx->pointers_toupdate,
-        (struct ptr_toupdate_pair){(struct object **)env_ptr,
-                                   (struct object *)*env_ptr});
+        ctx, (struct ptr_toupdate_pair){(struct object **)env_ptr,
+                                        (struct object *)*env_ptr});
   }
   return (struct object *)env;
 }
