@@ -2,8 +2,8 @@ use std::{
     collections::HashMap,
     borrow::Cow,
 };
-use cdsl::{CStmt, CExpr, CDecl, CType};
-use nodes::{LExpr, Env, LExEnv, LamType, ExprLit};
+use crate::cdsl::{CStmt, CExpr, CDecl, CType};
+use crate::nodes::{LExpr, Env, LExEnv, LamType, ExprLit};
 // use itertools::Itertools;
 // use transform::TransformContext;
 

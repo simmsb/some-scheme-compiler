@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use nom;
 
-use nodes::{LExpr, ExprLit};
+use crate::nodes::{LExpr, ExprLit};
 
 fn ident_char(chr: char) -> bool {
     !" ()\n\r\"\'".contains(chr)

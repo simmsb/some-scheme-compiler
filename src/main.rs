@@ -1,4 +1,4 @@
-#![feature(box_syntax, box_patterns, tool_lints)]
+#![feature(box_syntax, box_patterns)]
 
 #[macro_use]
 extern crate nom;
@@ -18,7 +18,7 @@ pub mod nodes;
 pub mod parse;
 pub mod transform;
 
-use cdsl::*;
+use crate::cdsl::*;
 use std::{
     process::Command,
     borrow::Cow,

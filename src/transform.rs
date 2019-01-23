@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use nodes::{LExpr, ExprLit, LamType};
+use crate::nodes::{LExpr, ExprLit, LamType};
 
 // compiler transformation stage
 
@@ -55,7 +55,7 @@ fn void_obj() -> LExpr<'static> {
 /// (builtin_int_obj_add_func_1 1 2)
 /// ```
 pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
-    use nodes::LExpr::*;
+    use crate::nodes::LExpr::*;
 
     match expr {
         Lam(args, body) => {
@@ -104,7 +104,7 @@ pub fn rename_builtins<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr
 /// (object_int_obj_new 12)
 /// ```
 pub fn transform_lits<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
-    use nodes::LExpr::*;
+    use crate::nodes::LExpr::*;
 
     match expr {
         Lam(args, body) => {
@@ -151,7 +151,7 @@ pub fn transform_lits<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
 /// ((((f) a) b) c)
 /// ```
 pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
-    use nodes::LExpr::*;
+    use crate::nodes::LExpr::*;
 
     match expr {
         Lam(args, body) => {
@@ -206,7 +206,7 @@ pub fn expand_lam_app<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<
 ///
 /// where $unique is a unique variable name
 pub fn expand_lam_body<'a>(expr: LExpr<'a>, ctx: &mut TransformContext) -> LExpr<'a> {
-    use nodes::LExpr::*;
+    use crate::nodes::LExpr::*;
 
     match expr {
         LamOne(arg, body) => {

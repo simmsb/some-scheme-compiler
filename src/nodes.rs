@@ -113,7 +113,7 @@ pub enum LExEnv<'a> {
 
 impl<'a> fmt::Display for ExprLit<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use nodes::ExprLit::*;
+        use crate::nodes::ExprLit::*;
 
         match self {
             StringLit(x) => write!(f, "\"{}\"", x),
@@ -126,7 +126,7 @@ impl<'a> fmt::Display for ExprLit<'a> {
 
 impl<'a> fmt::Display for LExpr<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use nodes::LExpr::*;
+        use crate::nodes::LExpr::*;
 
         match self {
             Lam(args, body) => {
@@ -171,7 +171,7 @@ impl<'a> fmt::Display for LExpr<'a> {
 
 impl<'a> fmt::Display for LExEnv<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use nodes::LExEnv::*;
+        use crate::nodes::LExEnv::*;
 
         match self {
             Lam {arg, expr, ..} =>
