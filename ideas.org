@@ -12,3 +12,5 @@
   but then allocate non-shared pointers to the heap (resulting in memory leaks)
 - There's some bug that causes us to generate code that creates a two var
   closure then invokes it as a one var closure, and vice versa
+- Remove the transform_lits transformation, it's a noop atm.
+- Make throwaway variables actually throw away, don't add to environment.
