@@ -4,11 +4,9 @@
 extern crate nom;
 #[macro_use]
 extern crate derive_more;
-extern crate structopt;
 #[macro_use]
 extern crate failure;
-extern crate itertools;
-extern crate tempdir;
+
 #[macro_use]
 extern crate include_dir;
 
@@ -19,21 +17,21 @@ pub mod parse;
 pub mod transform;
 
 use crate::cdsl::*;
-use std::{
-    process::Command,
-    borrow::Cow,
-    fs::{self, read_to_string, File},
-    path::PathBuf,
-    fmt::Write,
-    io::{stdin, Read},
-};
-use structopt::StructOpt;
 use failure::Error;
-use tempdir::TempDir;
 use include_dir::Dir;
+use std::{
+    borrow::Cow,
+    fmt::Write,
+    fs::{self, read_to_string, File},
+    io::{stdin, Read},
+    path::PathBuf,
+    process::Command,
+};
+use structopt;
+use structopt::StructOpt;
+use tempdir::TempDir;
 
-const RUNTIME_DIR: Dir = include_dir!("src/core");
-
+const RUNTIME_DIR: Dir<'_> = include_dir!("src/core");
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "somescheme")]
@@ -41,7 +39,12 @@ struct Opt {
     #[structopt(short = "d", long = "debug")]
     debug: bool,
 
-    #[structopt(short = "o", long = "output", parse(from_os_str), default_value = "a.out")]
+    #[structopt(
+        short = "o",
+        long = "output",
+        parse(from_os_str),
+        default_value = "a.out"
+    )]
     output: PathBuf,
 
     #[structopt(short = "i", long = "input", parse(from_os_str))]
@@ -100,7 +103,8 @@ fn main() -> Result<(), Error> {
 }
 
 fn copy_binary(tmp_dir: &TempDir, output_path: &PathBuf) {
-    fs::copy(tmp_dir.path().join("compiled_result"), output_path).expect("failed copying compiled binary");
+    fs::copy(tmp_dir.path().join("compiled_result"), output_path)
+        .expect("failed copying compiled binary");
 }
 
 fn invoke_make(tmp_dir: &TempDir) -> Result<String, Error> {
@@ -112,10 +116,12 @@ fn invoke_make(tmp_dir: &TempDir) -> Result<String, Error> {
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
-        Err(format_err!("Make failed with exit code: {:?}\nstdout: {}\n\nstderr: {}",
-                        output.status,
-                        String::from_utf8_lossy(&output.stdout),
-                        String::from_utf8_lossy(&output.stderr)))
+        Err(format_err!(
+            "Make failed with exit code: {:?}\nstdout: {}\n\nstderr: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ))
     }
 }
 
@@ -126,7 +132,8 @@ fn insert_source_into_build_dir(tmp_dir: &TempDir, source: &str) {
 
     let mut file = File::create(tmp_path).unwrap();
 
-    file.write_all(source.as_bytes()).expect("failed to write source into build dir file");
+    file.write_all(source.as_bytes())
+        .expect("failed to write source into build dir file");
 }
 
 fn generate_build_dir() -> TempDir {
@@ -140,17 +147,23 @@ fn generate_build_dir() -> TempDir {
 
         let mut out_file = File::create(to_path).unwrap();
 
-        out_file.write_all(file.contents()).expect("failed writing build file content into build dir");
+        out_file
+            .write_all(file.contents())
+            .expect("failed writing build file content into build dir");
     }
 
     tmp_dir
 }
 
 fn generate_program_source(src: &str) -> String {
-    format!("{}{}{}", r#"
+    format!(
+        "{}{}{}",
+        r#"
 #include "base.h"
 #include "builtin.h"
-"#, src, r#"
+"#,
+        src,
+        r#"
 int main() {
   struct vector_env_elem_nexts *nexts = malloc(sizeof(struct vector_env_elem_nexts));
   *nexts = vector_env_elem_nexts_new(0);
@@ -172,11 +185,14 @@ int main() {
   memcpy(thnk_heap, &initial_thunk, sizeof(struct thunk));
   scheme_start(thnk_heap);
 }
-"#)
+"#
+    )
 }
 
-
-fn do_transforms<'a>(opts: &Opt, r: nodes::LExpr<'a>) -> Result<(nodes::LExEnv<'a>, codegen::EnvCtx<'a>), Error> {
+fn do_transforms<'a>(
+    opts: &Opt,
+    r: nodes::LExpr<'a>,
+) -> Result<(nodes::LExEnv<'a>, codegen::EnvCtx<'a>), Error> {
     let transforms = &[
         transform::rename_builtins,
         transform::transform_lits,
@@ -194,17 +210,15 @@ fn do_transforms<'a>(opts: &Opt, r: nodes::LExpr<'a>) -> Result<(nodes::LExEnv<'
         eprintln!("{}", r);
     }
 
-    let r = transforms
-        .into_iter()
-        .fold(r, |acc, func| {
-            let r = func(acc, &mut context);
+    let r = transforms.into_iter().fold(r, |acc, func| {
+        let r = func(acc, &mut context);
 
-            if opts.debug {
-                eprintln!("{0}\n{0:#?}", r);
-            }
+        if opts.debug {
+            eprintln!("{0}\n{0:#?}", r);
+        }
 
-            r
-        });
+        r
+    });
 
     let cont = nodes::LExpr::BuiltinIdent(Cow::from("halt_func"), nodes::LamType::OneArg);
 
@@ -219,8 +233,11 @@ fn do_transforms<'a>(opts: &Opt, r: nodes::LExpr<'a>) -> Result<(nodes::LExEnv<'
     Ok((expr, ctx))
 }
 
-
-fn do_codegen<'a>(opts: &Opt, expr: nodes::LExEnv<'a>, mut ctx: codegen::EnvCtx<'a>) -> Result<String, Error> {
+fn do_codegen<'a>(
+    opts: &Opt,
+    expr: nodes::LExEnv<'a>,
+    mut ctx: codegen::EnvCtx<'a>,
+) -> Result<String, Error> {
     let mut output_buffer = String::new();
 
     if opts.debug {

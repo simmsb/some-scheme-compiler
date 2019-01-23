@@ -102,7 +102,7 @@ fn resolve_env_internal<'a>(node: LExpr<'a>, env: &Env<'a>, ctx: &mut EnvCtx<'a>
     }
 }
 
-pub fn resolve_env(node: LExpr) -> (LExEnv, EnvCtx) {
+pub fn resolve_env(node: LExpr<'_>) -> (LExEnv<'_>, EnvCtx<'_>) {
     let mut ctx = EnvCtx::default();
     let primary_env = Env::default();
 

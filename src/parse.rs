@@ -7,7 +7,7 @@ fn ident_char(chr: char) -> bool {
     !" ()\n\r\"\'".contains(chr)
 }
 
-pub fn parse_int(input: &str) -> nom::IResult<&str, LExpr> {
+pub fn parse_int(input: &str) -> nom::IResult<&str, LExpr<'_>> {
     map_res!(input,
         pair!(opt!(char!('-')), nom::digit),
         | (sign, num) : (Option<char>, &str) | num.parse::<i64>()
@@ -15,15 +15,15 @@ pub fn parse_int(input: &str) -> nom::IResult<&str, LExpr> {
              .map(|n| LExpr::Lit(ExprLit::NumLit(n))))
 }
 
-pub fn parse_ident(input: &str) -> nom::IResult<&str, Cow<str>> {
+pub fn parse_ident(input: &str) -> nom::IResult<&str, Cow<'_, str>> {
     map!(input, take_while1!(ident_char), Cow::from)
 }
 
-pub fn parse_var(input: &str) -> nom::IResult<&str, LExpr> {
+pub fn parse_var(input: &str) -> nom::IResult<&str, LExpr<'_>> {
     map!(input, ws!(parse_ident), LExpr::Var)
 }
 
-pub fn parse_str(input: &str) -> nom::IResult<&str, LExpr> {
+pub fn parse_str(input: &str) -> nom::IResult<&str, LExpr<'_>> {
     map!(
         input,
         delimited!(
@@ -34,7 +34,7 @@ pub fn parse_str(input: &str) -> nom::IResult<&str, LExpr> {
 }
 
 #[allow(clippy::cyclomatic_complexity)]
-fn parse_lam(input: &str) -> nom::IResult<&str, LExpr> {
+fn parse_lam(input: &str) -> nom::IResult<&str, LExpr<'_>> {
     do_parse!(input,
         char!('(') >>
         ws!(tag!("lambda")) >>
@@ -48,7 +48,7 @@ fn parse_lam(input: &str) -> nom::IResult<&str, LExpr> {
     )
 }
 
-pub fn parse_app(input: &str) -> nom::IResult<&str, LExpr> {
+pub fn parse_app(input: &str) -> nom::IResult<&str, LExpr<'_>> {
     do_parse!(input,
         char!('(') >>
         rand: parse_exp >>
@@ -58,7 +58,7 @@ pub fn parse_app(input: &str) -> nom::IResult<&str, LExpr> {
     )
 }
 
-pub fn parse_exp(input: &str) -> nom::IResult<&str, LExpr> {
+pub fn parse_exp(input: &str) -> nom::IResult<&str, LExpr<'_>> {
     alt_complete!(input, parse_int | parse_str | parse_var | parse_lam | parse_app)
 }
 
