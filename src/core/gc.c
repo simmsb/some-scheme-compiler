@@ -3,11 +3,11 @@
 #include <string.h>
 
 #include "base.h"
+#include "common.h"
 #include "gc.h"
 #include "queue.h"
 #include "tree.h"
 #include "vec.h"
-#include "common.h"
 
 MAKE_VECTOR(struct object *, gc_heap_nodes)
 MAKE_VECTOR(size_t, size_t)
@@ -136,7 +136,7 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
     TOUCH_OBJECT(obj, "toheap_env");
     struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
     DEBUG_FPRINTF(stderr, "moving env to heap %p -> %p\n", (void *)obj,
-            (void *)heap_env);
+                  (void *)heap_env);
 
     memcpy(heap_env, obj, sizeof(struct env_elem));
     env = heap_env;
@@ -146,17 +146,17 @@ struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
   }
 
   if (env->val != NULL) {
-      queue_ptr_toupdate_pair_enqueue_checked(
-          &ctx->pointers_toupdate,
-          (struct ptr_toupdate_pair){(struct object **)&env->val,
-                  (struct object *)env->val});
+    queue_ptr_toupdate_pair_enqueue_checked(
+        &ctx->pointers_toupdate,
+        (struct ptr_toupdate_pair){(struct object **)&env->val,
+                                   (struct object *)env->val});
   }
 
   if (env->prev != NULL) {
-      queue_ptr_toupdate_pair_enqueue_checked(
-          &ctx->pointers_toupdate,
-          (struct ptr_toupdate_pair){(struct object **)&env->prev,
-                  (struct object *)env->prev});
+    queue_ptr_toupdate_pair_enqueue_checked(
+        &ctx->pointers_toupdate,
+        (struct ptr_toupdate_pair){(struct object **)&env->prev,
+                                   (struct object *)env->prev});
   }
 
   for (size_t i = 0; i < env->nexts->length; i++) {
@@ -196,7 +196,7 @@ void free_env(struct object *obj) {
   //  \-> d
 
   size_t index_in_parent = vector_env_elem_nexts_indexof(env->prev->nexts, env);
-  if (index_in_parent >= env->prev->nexts->length) {
+  if (DEBUG_ONLY(index_in_parent >= env->prev->nexts->length)) {
     RUNTIME_ERROR(
         "Child environment not a member of it's parent's child array!");
   }
@@ -392,7 +392,7 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
       gc_func_map[obj->tag].free(obj);
 
       // free it, should this be done if the object is on the stack?
-      if (obj->on_stack) {
+      if (DEBUG_ONLY(obj->on_stack)) {
         RUNTIME_ERROR("Object was on the stack during a major GC!");
       }
 
@@ -400,7 +400,7 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
 
       // set the pointer in the vector to null
       *ptr = NULL;
-    } else if (obj->mark == GREY) {
+    } else if (DEBUG_ONLY(obj->mark == GREY)) {
       // this shouldn't happen, but just incase
       RUNTIME_ERROR("Object was marked grey at time of major GC!");
     } else {

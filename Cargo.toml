@@ -6,9 +6,9 @@ edition = "2018"
 
 [dependencies]
 itertools = "0.8.0"
-derive_more = "0.13.0"
+derive_more = "0.14.0"
 structopt = "0.2.14"
 failure = "0.1.5"
 tempdir = "0.3.7"
 include_dir = "0.2.1"
-nom = "4.1.1"
+nom = "4.2.1"

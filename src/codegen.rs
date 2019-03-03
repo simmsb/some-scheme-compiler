@@ -223,6 +223,7 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
                 let mut body = Vec::new();
                 body.extend(supporting_stmts);
                 body.push(main_expr);
+                body.push(CStmt::Expr(CExpr::MacroCall {name: "__builtin_unreachable".into(), args: vec![]}));
 
                 CDecl::Fun {
                     name: Cow::from(name),
@@ -251,6 +252,7 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
                 let mut body = Vec::new();
                 body.extend(supporting_stmts);
                 body.push(main_expr);
+                body.push(CStmt::Expr(CExpr::MacroCall {name: "__builtin_unreachable".into(), args: vec![]}));
 
                 CDecl::Fun {
                     name: Cow::from(name),
@@ -282,6 +284,7 @@ pub fn lambda_proto_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     name: Cow::from(name),
                     typ: CType::Static(box CType::Void),
                     args,
+                    noreturn: true,
                 }
             },
             LamCont { id, .. } => {
@@ -297,6 +300,7 @@ pub fn lambda_proto_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     name: Cow::from(name),
                     typ: CType::Static(box CType::Void),
                     args,
+                    noreturn: true,
                 }
             },
             _ => unreachable!("Should not exist here"),

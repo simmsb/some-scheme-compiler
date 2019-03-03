@@ -35,3 +35,9 @@
 #else
 #define DEBUG_FPRINTF(...) (void)0
 #endif // DEBUG
+
+#ifdef DEBUG
+#define DEBUG_ONLY(expr) (e)
+#else
+#define DEBUG_ONLY(expr) (0)
+#endif // DEBUG

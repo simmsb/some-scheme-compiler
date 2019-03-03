@@ -2,57 +2,55 @@
 #define SOMESCHEME_GC_H
 
 #include "base.h"
-#include "vec.h"
-#include "tree.h"
 #include "queue.h"
+#include "tree.h"
+#include "vec.h"
 
 DEFINE_VECTOR(size_t, size_t)
 DEFINE_VECTOR(struct object *, gc_heap_nodes)
 DEFINE_QUEUE(struct object *, gc_grey_nodes)
 
 struct ptr_toupdate_pair {
-    struct object **toupdate;
-    struct object *on_stack;
+  struct object **toupdate;
+  struct object *on_stack;
 };
 
 DEFINE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair)
 
 struct gc_context {
-    // nodes that are marked grey
-    struct queue_gc_grey_nodes grey_nodes;
+  // nodes that are marked grey
+  struct queue_gc_grey_nodes grey_nodes;
 
-    // pointers that need to be updated when
-    // another pointer has been moved to the heap
-    // pair is (pointer_to_update, stack_pointer)
-    struct queue_ptr_toupdate_pair pointers_toupdate;
+  // pointers that need to be updated when
+  // another pointer has been moved to the heap
+  // pair is (pointer_to_update, stack_pointer)
+  struct queue_ptr_toupdate_pair pointers_toupdate;
 
-    // pointers that have been updated to the heap
-    // pair is (stack_pointer, heap_pointer)
-    struct ptr_bst updated_pointers;
+  // pointers that have been updated to the heap
+  // pair is (stack_pointer, heap_pointer)
+  struct ptr_bst updated_pointers;
 };
 
 struct gc_funcs {
-    // Copies the object to the heap and updates
-    // anything it points to to point to the heap
-    // if the object is on the heap already this returns the same
-    // pointer that was put in
-    struct object *(* const toheap)(struct object *, struct gc_context *);
+  // Copies the object to the heap and updates
+  // anything it points to to point to the heap
+  // if the object is on the heap already this returns the same
+  // pointer that was put in
+  struct object *(*const toheap)(struct object *, struct gc_context *);
 
-    // Marks an object and any child pointers
-    // Stack objects are copied to the heap and the context updated
-    void (* const mark)(struct object *, struct gc_context *);
+  // Marks an object and any child pointers
+  // Stack objects are copied to the heap and the context updated
+  void (*const mark)(struct object *, struct gc_context *);
 
-    // Frees an object
-    // Acts as the cleanup routine, the gc will decide whether to call free on
-    // the object if it is on the stack or not
-    void (* const free)(struct object *);
+  // Frees an object
+  // Acts as the cleanup routine, the gc will decide whether to call free on
+  // the object if it is on the stack or not
+  void (*const free)(struct object *);
 };
-
 
 struct gc_data {
-    struct vector_gc_heap_nodes nodes;
+  struct vector_gc_heap_nodes nodes;
 };
-
 
 void gc_init(void);
 

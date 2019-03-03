@@ -7,9 +7,9 @@
 #include <sys/resource.h>
 
 #include "base.h"
+#include "common.h"
 #include "gc.h"
 #include "vec.h"
-#include "common.h"
 
 MAKE_VECTOR(struct env_elem *, env_elem_nexts)
 
@@ -20,14 +20,14 @@ static void *stack_initial;
 static jmp_buf setjmp_env_buf;
 
 void call_closure_one(struct object *rator, struct object *rand) {
-  if (rator->tag != OBJ_CLOSURE) {
+  if (DEBUG_ONLY(rator->tag != OBJ_CLOSURE)) {
     RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator,
                   rator->tag);
   }
 
   struct closure *closure = (struct closure *)rator;
 
-  if (closure->size != CLOSURE_ONE) {
+  if (DEBUG_ONLY(closure->size != CLOSURE_ONE)) {
     printf("Trying to call: %p\n", closure->fn_1);
     RUNTIME_ERROR("Called a closure that takes two args with one arg");
   }
@@ -48,14 +48,14 @@ void call_closure_one(struct object *rator, struct object *rand) {
 
 void call_closure_two(struct object *rator, struct object *rand,
                       struct object *cont) {
-  if (rator->tag != OBJ_CLOSURE) {
+  if (DEBUG_ONLY(rator->tag != OBJ_CLOSURE)) {
     RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator,
                   rator->tag);
   }
 
   struct closure *closure = (struct closure *)rator;
 
-  if (closure->size != CLOSURE_TWO) {
+  if (DEBUG_ONLY(closure->size != CLOSURE_TWO)) {
     RUNTIME_ERROR("Called a closure that takes one arg with two args");
   }
 
@@ -204,10 +204,10 @@ struct object *env_get(size_t ident_id, struct env_elem *env) {
     fprintf(stderr, "%p\n", (void *)env);
 #endif
     if (env->ident_id == ident_id) {
-      DEBUG_FPRINTF(stderr, "getting %p tag: %d, id: %ld from env %p\n", (void *)env->val, env->val->tag,
-              ident_id, (void *)env);
+      DEBUG_FPRINTF(stderr, "getting %p tag: %d, id: %ld from env %p\n",
+                    (void *)env->val, env->val->tag, ident_id, (void *)env);
 
-      if (env->val->tag > OBJ_STR) {
+      if (DEBUG_ONLY(env->val->tag > OBJ_STR)) {
         RUNTIME_ERROR(
             "Invalid object tag in env: %p tag: %d, id: %ld from env %p\n",
             (void *)env->val, env->val->tag, ident_id, (void *)env);

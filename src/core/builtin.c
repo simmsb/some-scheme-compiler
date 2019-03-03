@@ -1,11 +1,11 @@
-#include "builtin.h"
 #include "base.h"
+#include "builtin.h"
 #include "common.h"
 
 struct int_obj object_int_obj_add(struct object *lhs, struct object *rhs) {
-  if (lhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
     RUNTIME_ERROR("Left operand to binary add not of integer type");
-  if (rhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
     RUNTIME_ERROR("Right operand to binary add not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;
@@ -15,9 +15,9 @@ struct int_obj object_int_obj_add(struct object *lhs, struct object *rhs) {
 }
 
 struct int_obj object_int_obj_sub(struct object *lhs, struct object *rhs) {
-  if (lhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
     RUNTIME_ERROR("Left operand to binary sub not of integer type");
-  if (rhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
     RUNTIME_ERROR("Right operand to binary sub not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;
@@ -27,9 +27,9 @@ struct int_obj object_int_obj_sub(struct object *lhs, struct object *rhs) {
 }
 
 struct int_obj object_int_obj_mul(struct object *lhs, struct object *rhs) {
-  if (lhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
     RUNTIME_ERROR("Left operand to binary mul not of integer type");
-  if (rhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
     RUNTIME_ERROR("Right operand to binary mul not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;
@@ -39,9 +39,9 @@ struct int_obj object_int_obj_mul(struct object *lhs, struct object *rhs) {
 }
 
 struct int_obj object_int_obj_div(struct object *lhs, struct object *rhs) {
-  if (lhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
     RUNTIME_ERROR("Left operand to binary div not of integer type");
-  if (rhs->tag != OBJ_INT)
+  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
     RUNTIME_ERROR("Right operand to binary div not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;

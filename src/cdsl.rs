@@ -77,6 +77,7 @@ pub enum CDecl<'a> {
         name: Cow<'a, str>,
         typ: CType<'a>,
         args: Vec<CType<'a>>,
+        noreturn: bool,
     },
     Fun {
         name: Cow<'a, str>,
@@ -311,6 +312,7 @@ impl<'a> ToC for CDecl<'a> {
                 name,
                 typ,
                 args,
+                noreturn,
             } => {
                 let mut f = String::new();
 
@@ -329,6 +331,10 @@ impl<'a> ToC for CDecl<'a> {
                 }
 
                 f.push(')');
+
+                if *noreturn {
+                    f.push_str("__attribute__((noreturn)) ");
+                }
 
                 s.push_str(&typ.export_with_name(&f));
 

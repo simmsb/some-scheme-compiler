@@ -49,6 +49,9 @@ struct Opt {
 
     #[structopt(short = "i", long = "input", parse(from_os_str))]
     input: Option<PathBuf>,
+
+    #[structopt(short = "k", long = "keep-tmp")]
+    keep_tmpdir: bool,
 }
 
 fn main() -> Result<(), Error> {
@@ -98,7 +101,15 @@ fn main() -> Result<(), Error> {
 
     copy_binary(&build_dir, &opts.output);
 
-    build_dir.close()?;
+    if !opts.keep_tmpdir {
+        build_dir.close()?;
+    } else {
+        println!("Temp dir: {}", build_dir.path().display());
+
+        // don't close the temp dir by preventing it's drop
+        std::mem::forget(build_dir);
+    }
+
     Ok(())
 }
 
@@ -279,7 +290,7 @@ fn do_codegen<'a>(
 
     let main_fn = cdsl::CDecl::Fun {
         name: Cow::from("main_lambda"),
-        typ: cdsl::CType::Void,
+        typ: cdsl::CType::Static(box cdsl::CType::Void),
         args: vec![
             (
                 Cow::from("_"),

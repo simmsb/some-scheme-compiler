@@ -4,20 +4,20 @@
 #include "vec.h"
 
 struct ptr_pair {
-    void *old;
-    void *new;
+  void *old;
+  void *new;
 };
 
 struct ptr_pair_bst {
-    struct ptr_pair ptrs;
-    int left_idx;
-    int right_idx;
+  struct ptr_pair ptrs;
+  int left_idx;
+  int right_idx;
 };
 
 DEFINE_VECTOR(struct ptr_pair_bst, ptr_pair_bst)
 
 struct ptr_bst {
-    struct vector_ptr_pair_bst vec;
+  struct vector_ptr_pair_bst vec;
 };
 
 struct ptr_bst ptr_bst_new(void);
