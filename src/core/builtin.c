@@ -63,7 +63,7 @@ MAKE_TWO_ARG_FROM_BUILTIN(object_int_obj_div, struct int_obj,
                           object_int_obj_div_param, object_int_obj_div_param_2,
                           object_int_obj_div_env, object_int_obj_div_env_2)
 
-void halt_func_func(struct object *cont, struct env_elem *env) {
+void halt_func_func(struct object *cont, struct env_table *env) {
   halt_func(cont);
 }
 
@@ -73,9 +73,6 @@ char *obj_to_string_internal(struct object *val) {
   switch (val->tag) {
   case OBJ_CLOSURE:
     ALLOC_SPRINTF(res, "closure|%ld", ((struct closure *)val)->env_id);
-    break;
-  case OBJ_ENV:
-    ALLOC_SPRINTF(res, "env|%ld", ((struct env_elem *)val)->ident_id);
     break;
   case OBJ_INT:
     ALLOC_SPRINTF(res, "%d", ((struct int_obj *)val)->val);
@@ -94,7 +91,7 @@ char *obj_to_string_internal(struct object *val) {
 }
 
 void to_string_func_func(struct object *val, struct object *cont,
-                         struct env_elem *env) {
+                         struct env_table *env) {
   char *res = obj_to_string_internal(val);
 
   OBJECT_STRING_OBJ_NEW(res, result_str);
@@ -105,7 +102,7 @@ void to_string_func_func(struct object *val, struct object *cont,
 }
 
 void println_func_func(struct object *val, struct object *cont,
-                       struct env_elem *env) {
+                       struct env_table *env) {
   char *res = obj_to_string_internal(val);
 
   printf("%s\n", res);

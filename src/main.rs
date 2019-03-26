@@ -170,23 +170,19 @@ fn generate_program_source(src: &str) -> String {
     format!(
         "{}{}{}",
         r#"
+#include <stdlib.h>
+#include <string.h>
 #include "base.h"
 #include "builtin.h"
 "#,
         src,
         r#"
 int main() {
-  struct vector_env_elem_nexts *nexts = malloc(sizeof(struct vector_env_elem_nexts));
-  *nexts = vector_env_elem_nexts_new(0);
+  struct env_table *base_env = alloca(ENV_TABLE_SIZE);
+  memset(base_env, 0, ENV_TABLE_SIZE);
+  base_env->base = object_base_new(OBJ_ENV);
 
-  struct env_elem base_env = {
-    .base = object_base_new(OBJ_ENV),
-    .ident_id = 0,
-    .val = NULL,
-    .nexts = nexts,
-  };
-
-  struct closure initial_closure = object_closure_one_new(0, main_lambda, &base_env);
+  struct closure initial_closure = object_closure_one_new(0, main_lambda, base_env);
   struct thunk initial_thunk = {
     .closr = &initial_closure,
     .one = {NULL},
@@ -298,7 +294,7 @@ fn do_codegen<'a>(
             ),
             (
                 Cow::from("env"),
-                CType::Ptr(box CType::Struct(Cow::from("env_elem"))),
+                CType::Ptr(box CType::Struct(Cow::from("env_table"))),
             ),
         ],
         body: supporting_stmts,

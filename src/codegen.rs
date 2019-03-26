@@ -25,6 +25,10 @@ impl<'a> EnvCtx<'a> {
         index
     }
 
+    pub fn num_vars(&self) -> usize {
+        self.var_index
+    }
+
     pub fn gen_env_index(&mut self) -> usize {
         let index = self.lam_index;
         self.lam_index += 1;
@@ -213,7 +217,7 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
 
                 let args = vec![
                     (arg.clone(), CType::Ptr(box CType::Struct(Cow::from("object")))),
-                    (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
+                    (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_table")))),
                 ];
 
                 supporting_stmts.push(env_set_codegen(&arg, &env));
@@ -241,7 +245,7 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
                 let args = vec![
                     (arg.clone(),  CType::Ptr(box CType::Struct(Cow::from("object")))),
                     (cont.clone(), CType::Ptr(box CType::Struct(Cow::from("object")))),
-                    (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_elem")))),
+                    (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_table")))),
                 ];
 
                 supporting_stmts.push(env_set_codegen(&arg, &env));
@@ -277,7 +281,7 @@ pub fn lambda_proto_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
 
                 let args = vec![
                     CType::Ptr(box CType::Struct(Cow::from("object"))),
-                    CType::Ptr(box CType::Struct(Cow::from("env_elem"))),
+                    CType::Ptr(box CType::Struct(Cow::from("env_table"))),
                 ];
 
                 CDecl::FunProto {
@@ -293,7 +297,7 @@ pub fn lambda_proto_codegen<'a>(lams: &[LExEnv<'a>]) -> Vec<CDecl<'a>> {
                 let args = vec![
                     CType::Ptr(box CType::Struct(Cow::from("object"))),
                     CType::Ptr(box CType::Struct(Cow::from("object"))),
-                    CType::Ptr(box CType::Struct(Cow::from("env_elem"))),
+                    CType::Ptr(box CType::Struct(Cow::from("env_table"))),
                 ];
 
                 CDecl::FunProto {
@@ -526,22 +530,22 @@ fn gen_builtin_envs<'a>(ctx: &mut EnvCtx<'a>) -> (Vec<CompleteEnv<'a>>, Vec<Comp
 pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: &[(usize, Env<'a>)]) -> Vec<CDecl<'a>> {
     let (builtin_envs, builtin_vars) = gen_builtin_envs(ctx);
 
-    let mut env_table_entries = Vec::new();
+    let mut env_table_id_maps = Vec::new();
 
-    env_table_entries.extend(builtin_envs.iter().map(|CompleteEnv { id, env, .. }| gen_env_table_elem(*id, env)));
-    env_table_entries.extend(program_envs.iter().map(|(id, env)| gen_env_table_elem(*id, env)));
+    env_table_id_maps.extend(builtin_envs.iter().map(|CompleteEnv { id, env, .. }| gen_env_table_elem(*id, env)));
+    env_table_id_maps.extend(program_envs.iter().map(|(id, env)| gen_env_table_elem(*id, env)));
 
     let global_env_table_decl = CDecl::Var {
         name: Cow::from("global_env_table"),
-        typ: CType::Arr(box CType::Struct(Cow::from("env_table_entry")), None),
-        init: Some(CExpr::InitList(env_table_entries)),
+        typ: CType::Arr(box CType::Const(box CType::Struct(Cow::from("env_table_id_map"))), None),
+        init: Some(CExpr::InitList(env_table_id_maps)),
     };
 
     let builtin_var_ids_decl: Vec<_> = builtin_vars
         .iter()
         .map(|CompleteVar { name, id }| CDecl::Var {
             name: name.clone(),
-            typ: CType::Other(Cow::from("size_t")),
+            typ: CType::Const(box CType::Other(Cow::from("size_t"))),
             init: Some(CExpr::LitUInt(*id)),
         })
         .collect();
@@ -550,12 +554,19 @@ pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: &[(usize, Env<'a>)]) 
         .iter()
         .map(|CompleteEnv { name, id, .. }| CDecl::Var {
             name: name.clone(),
-            typ: CType::Other(Cow::from("size_t")),
+            typ: CType::Const(box CType::Other(Cow::from("size_t"))),
             init: Some(CExpr::LitUInt(*id)),
         })
         .collect();
 
+    let env_table_map_size_decl = CDecl::Var {
+        name: Cow::from("env_table_map_size"),
+        typ: CType::Const(box CType::Other(Cow::from("size_t"))),
+        init: Some(CExpr::LitUInt(ctx.num_vars())),
+    };
+
     let mut results = Vec::new();
+    results.push(env_table_map_size_decl);
     results.push(global_env_table_decl);
     results.extend(builtin_var_ids_decl);
     results.extend(builtin_env_ids_decl);

@@ -15,29 +15,21 @@
           "Invalid object tag in env: tag: %d, id: %ld from env %p\n",         \
           (VAL)->tag, (IDENT_ID), (void *)*(HEAD_PTR));                        \
     }                                                                          \
-    struct env_elem *new_env = alloca(sizeof(struct env_elem));                \
-    struct vector_env_elem_nexts *nexts =                                      \
-        malloc(sizeof(struct vector_env_elem_nexts));                          \
-    *nexts = vector_env_elem_nexts_new(0);                                     \
-    memcpy(new_env,                                                            \
-           &(struct env_elem){.base = object_base_new(OBJ_ENV),                \
-                              .ident_id = (IDENT_ID),                          \
-                              .val = (VAL),                                    \
-                              .prev = *(HEAD_PTR),                             \
-                              .nexts = nexts},                                 \
-           sizeof(struct env_elem));                                           \
+    struct env_table *new_env = alloca(ENV_TABLE_SIZE);                        \
+    memcpy(new_env, *(HEAD_PTR), ENV_TABLE_SIZE);                              \
+    new_env->base = object_base_new(OBJ_ENV);                                  \
+    new_env->vals[IDENT_ID] = VAL;                                             \
                                                                                \
     TOUCH_OBJECT(VAL, "add_env");                                              \
     DEBUG_FPRINTF(stderr, "adding tag: %d, id: %ld to env %p\n", (VAL)->tag,   \
                   (IDENT_ID), (void *)*(HEAD_PTR));                            \
                                                                                \
-    vector_env_elem_nexts_push((*HEAD_PTR)->nexts, new_env);                   \
     (*HEAD_PTR) = new_env;                                                     \
   } while (0)
 
 #define NUM_ARGS(...) (sizeof((size_t[]){__VA_ARGS__}) / sizeof(size_t))
 #define ENV_ENTRY(ID, ...)                                                     \
-  [ID] = (struct env_table_entry) {                                            \
+  [ID] = (struct env_table_id_map) {                                           \
     ID, NUM_ARGS(__VA_ARGS__), (size_t[]) { __VA_ARGS__ }                      \
   }
 
@@ -72,7 +64,7 @@
     (NAME) = (struct object *)new_obj;                                         \
   } while (0)
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #define TOUCH_OBJECT(OBJ, S)                                                   \
   do {                                                                         \
     fprintf(stderr,                                                            \
@@ -88,8 +80,6 @@
   do {                                                                         \
   } while (0)
 #endif // DEBUG
-
-DEFINE_VECTOR(struct env_elem *, env_elem_nexts)
 
 enum closure_size {
   CLOSURE_ONE = 0,
@@ -110,30 +100,30 @@ struct object {
   enum object_tag tag;
   enum gc_mark_type mark;
   bool on_stack;
-#ifdef DEBUG
+#ifndef NDEBUG
   char *last_touched_by;
 #endif
 };
 
 // builtin objects
 
-struct env_elem {
+struct env_table {
   struct object base;
-  const size_t ident_id;
-  struct object *val; // shared
-  struct env_elem *prev;
-  struct vector_env_elem_nexts *nexts;
+  struct object *vals[/* env_table_map_size */];
 };
+
+extern const size_t env_table_map_size;
+#define ENV_TABLE_SIZE (sizeof(struct env_table) + sizeof(struct object *) * env_table_map_size)
 
 struct closure {
   struct object base;
   const enum closure_size size;
   const size_t env_id;
   union {
-    void (*const fn_1)(struct object *, struct env_elem *);
-    void (*const fn_2)(struct object *, struct object *, struct env_elem *);
+    void (*const fn_1)(struct object *, struct env_table *);
+    void (*const fn_2)(struct object *, struct object *, struct env_table *);
   };
-  struct env_elem *env;
+  struct env_table *env;
 };
 
 struct int_obj {
@@ -151,20 +141,20 @@ struct string_obj {
   const char buf[];
 };
 
-struct env_table_entry {
+struct env_table_id_map {
   const size_t env_id;
   const size_t num_ids;
   size_t *const var_ids;
 };
 
 // get an object from the environment
-struct object *env_get(size_t, struct env_elem *);
+struct object *env_get(size_t, struct env_table *);
 
 // set an existing value in the environment, returning the previous value
-struct object *env_set(size_t, struct env_elem *, struct object *);
+struct object *env_set(size_t, struct env_table *, struct object *);
 
 // The map of env ids to an array of var ids
-extern struct env_table_entry global_env_table[];
+extern struct env_table_id_map const global_env_table[];
 
 struct thunk {
   struct closure *closr;
@@ -188,11 +178,11 @@ void run_minor_gc(struct thunk *);
 struct object object_base_new(enum object_tag);
 struct closure object_closure_one_new(size_t,
                                       void (*const)(struct object *,
-                                                    struct env_elem *),
-                                      struct env_elem *);
+                                                    struct env_table *),
+                                      struct env_table *);
 struct closure object_closure_two_new(
-    size_t, void (*const)(struct object *, struct object *, struct env_elem *),
-    struct env_elem *);
+    size_t, void (*const)(struct object *, struct object *, struct env_table *),
+    struct env_table *);
 struct int_obj object_int_obj_new(int64_t);
 struct void_obj object_void_obj_new(void);
 struct string_obj object_string_obj_new(const char *);

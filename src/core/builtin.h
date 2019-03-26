@@ -3,15 +3,15 @@
 
 #include "base.h"
 
-#define DEFINE_BUILTIN_VAR(NAME) extern size_t NAME
-#define DEFINE_BUILTIN_ENV(NAME) extern size_t NAME
+#define DEFINE_BUILTIN_VAR(NAME) extern const size_t NAME
+#define DEFINE_BUILTIN_ENV(NAME) extern const size_t NAME
 
 #define DEFINE_ONE_ARG_FROM_BUILTIN(NAME)                                      \
-  void NAME##_func(struct object *, struct object *, struct env_elem *)
+  void NAME##_func(struct object *, struct object *, struct env_table *)
 
 #define MAKE_ONE_ARG_FROM_BUILTIN(NAME, TYPE, ARG, ENV)                        \
   void NAME##_func(struct object *rand, struct object *cont,                   \
-                   struct env_elem *env) {                                     \
+                   struct env_table *env) {                                     \
     ADD_ENV(ARG, rand, &env);                                                  \
                                                                                \
     struct object *lhs = env_get(ARG, env);                                    \
@@ -22,8 +22,8 @@
   }
 
 #define DEFINE_TWO_ARG_FROM_BUILTIN(NAME)                                      \
-  void NAME##_func(struct object *, struct object *, struct env_elem *);       \
-  void NAME##_func_2(struct object *, struct object *, struct env_elem *)
+  void NAME##_func(struct object *, struct object *, struct env_table *);       \
+  void NAME##_func_2(struct object *, struct object *, struct env_table *)
 
 #define DEFINE_UNOP(NAME)                                                      \
   DEFINE_BUILTIN_VAR(NAME##_param);                                            \
@@ -31,7 +31,7 @@
   DEFINE_ONE_ARG_FROM_BUILTIN(NAME)
 
 #define MAKE_CONSTRUCTOR_BUILTIN(NAME, TYPE)                                   \
-  void NAME##_ctor(TYPE inp, struct object *cont, struct env_elem *env) {      \
+  void NAME##_ctor(TYPE inp, struct object *cont, struct env_table *env) {      \
     TYPE result = (NAME)(inp);                                                 \
                                                                                \
     call_closure_one(cont, (struct object *)&result);                          \
@@ -40,7 +40,7 @@
 #define MAKE_TWO_ARG_FROM_BUILTIN(NAME, TYPE, LHS_ARG, RHS_ARG, LHS_ENV,       \
                                   RHS_ENV)                                     \
   void NAME##_func(struct object *rand, struct object *cont,                   \
-                   struct env_elem *env) {                                     \
+                   struct env_table *env) {                                     \
     ADD_ENV(LHS_ARG, rand, &env);                                              \
                                                                                \
     struct closure func_2_clos =                                               \
@@ -49,7 +49,7 @@
     call_closure_one(cont, (struct object *)&func_2_clos);                     \
   }                                                                            \
   void NAME##_func_2(struct object *rand, struct object *cont,                 \
-                     struct env_elem *env) {                                   \
+                     struct env_table *env) {                                   \
     ADD_ENV(RHS_ARG, rand, &env);                                              \
                                                                                \
     struct object *lhs = env_get(LHS_ARG, env);                                \
@@ -83,14 +83,14 @@ DEFINE_BINOP(object_int_obj_div);
 
 DEFINE_BUILTIN_VAR(halt_func_param);
 DEFINE_BUILTIN_ENV(halt_func_env);
-void halt_func_func(struct object *, struct env_elem *);
+void halt_func_func(struct object *, struct env_table *);
 
 DEFINE_BUILTIN_VAR(to_string_func_param);
 DEFINE_BUILTIN_ENV(to_string_func_env);
-void to_string_func_func(struct object *, struct object *, struct env_elem *);
+void to_string_func_func(struct object *, struct object *, struct env_table *);
 
 DEFINE_BUILTIN_VAR(println_func_param);
 DEFINE_BUILTIN_ENV(println_func_env);
-void println_func_func(struct object *, struct object *, struct env_elem *);
+void println_func_func(struct object *, struct object *, struct env_table *);
 
 #endif // SOMESCHEME_BUILTIN_H

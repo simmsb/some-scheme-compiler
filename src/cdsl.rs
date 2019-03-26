@@ -47,6 +47,7 @@ pub enum CType<'a> {
     Union(Cow<'a, str>),
     Other(Cow<'a, str>),
     Static(Box<CType<'a>>),
+    Const(Box<CType<'a>>),
     Void,
 }
 
@@ -237,6 +238,7 @@ impl<'a> CType<'a> {
                 Union(tname) => format!("union {} {}", tname, gen),
                 Other(tname) => format!("{} {}", tname, gen),
                 Static(..) => format!("static {}", gen),
+                Const(..) => format!("const {}", gen),
                 Void => format!("void {}", gen),
             };
 
@@ -244,6 +246,7 @@ impl<'a> CType<'a> {
                 Ptr(to) => typ = Some(to),
                 Arr(of, ..) => typ = Some(of),
                 Static(of) => typ = Some(of),
+                Const(of) => typ = Some(of),
                 _ => (),
             };
         }

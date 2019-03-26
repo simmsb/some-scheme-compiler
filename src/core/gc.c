@@ -23,7 +23,7 @@ static struct gc_funcs gc_func_map[] = {
                                       .free = gc_free_noop},
     [OBJ_ENV] = (struct gc_funcs){.toheap = toheap_env,
                                   .mark = mark_env,
-                                  .free = free_env},
+                                  .free = gc_free_noop},
     [OBJ_INT] = (struct gc_funcs){.toheap = toheap_int_obj,
                                   .mark = gc_mark_noop,
                                   .free = gc_free_noop},
@@ -64,6 +64,19 @@ static bool maybe_mark_grey_and_queue(struct gc_context *ctx,
   }
 }
 
+void queue_ptr_toupdate_pair_enqueue_checked(
+    struct queue_ptr_toupdate_pair *queue, struct ptr_toupdate_pair elem) {
+  assert(elem.on_stack != NULL);
+  assert(elem.toupdate != NULL);
+
+  // if the target is already on the heap, no need to copy it
+  if (!elem.on_stack->on_stack) {
+    return;
+  }
+
+  queue_ptr_toupdate_pair_enqueue(queue, elem);
+}
+
 struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
   struct closure *clos = (struct closure *)obj;
 
@@ -74,148 +87,47 @@ struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
     clos = heap_clos;
   }
 
-  queue_ptr_toupdate_pair_enqueue(
-      &ctx->pointers_toupdate,
-      (struct ptr_toupdate_pair){(struct object **)&clos->env,
-                                 (struct object *)clos->env});
+  if (clos->env->base.on_stack) {
+    TOUCH_OBJECT(&clos->env->base, "toheap_closure");
+    struct env_table *heap_env = gc_malloc(ENV_TABLE_SIZE);
+    memcpy(heap_env, clos->env, ENV_TABLE_SIZE);
+    clos->env = heap_env;
 
-  return (struct object *)clos;
-}
+    struct env_table_id_map id_map = global_env_table[clos->env_id];
 
-// Someday we should optimise this idk
-//
-// Linear scan through an array of size_t
-static bool linear_check_env_id(size_t *var_ids, size_t var_id,
-                                size_t num_ids) {
-  for (size_t i = 0; i < num_ids; i++) {
-    if (var_ids[i] == var_id) {
-      return true;
+    for (size_t i = 0; i < id_map.num_ids; i++) {
+      if (clos->env->vals[id_map.var_ids[i]] == NULL) {
+        continue;
+      }
+
+      queue_ptr_toupdate_pair_enqueue_checked(&ctx->pointers_toupdate, (struct ptr_toupdate_pair){
+        .on_stack = clos->env->vals[id_map.var_ids[i]],
+        .toupdate = &clos->env->vals[id_map.var_ids[i]]});
     }
   }
-  return false;
+
+  return (struct object *)clos;
 }
 
 void mark_closure(struct object *obj, struct gc_context *ctx) {
   struct closure *clos = (struct closure *)obj;
 
-  struct env_table_entry env_table = global_env_table[clos->env_id];
+  struct env_table_id_map id_map = global_env_table[clos->env_id];
 
-  struct vector_size_t visited_env_ids = vector_size_t_new(env_table.num_ids);
-
-  struct env_elem *env_head = clos->env;
-  while (env_head) {
-    if (!linear_check_env_id(env_table.var_ids, env_head->ident_id,
-                             env_table.num_ids)) {
-      env_head = env_head->prev;
-      continue;
-    }
-    if (!linear_check_env_id(visited_env_ids.data, env_head->ident_id,
-                             visited_env_ids.length)) {
-      env_head = env_head->prev;
-      continue;
-    }
-
-    env_head->base.mark = BLACK;
+  for (size_t i = 0; i < id_map.num_ids; i++) {
+    maybe_mark_grey_and_queue(ctx, clos->env->vals[id_map.var_ids[i]]);
   }
 
-  maybe_mark_grey_and_queue(ctx, &clos->env->base);
-}
-
-void queue_ptr_toupdate_pair_enqueue_checked(
-    struct queue_ptr_toupdate_pair *queue, struct ptr_toupdate_pair elem) {
-  assert(elem.on_stack != NULL);
-  assert(elem.toupdate != NULL);
-
-  queue_ptr_toupdate_pair_enqueue(queue, elem);
+  // manually mark the env as black (it's been so long idk if this matters)
+  clos->env->base.mark = BLACK;
 }
 
 struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
-  struct env_elem *env = (struct env_elem *)obj;
-
-  if (obj->on_stack) {
-    TOUCH_OBJECT(obj, "toheap_env");
-    struct env_elem *heap_env = gc_malloc(sizeof(struct env_elem));
-    DEBUG_FPRINTF(stderr, "moving env to heap %p -> %p\n", (void *)obj,
-                  (void *)heap_env);
-
-    memcpy(heap_env, obj, sizeof(struct env_elem));
-    env = heap_env;
-
-    // mark manually so we don't loop upon adding the parent node to the queue
-    ((struct object *)env)->on_stack = false;
-  }
-
-  if (env->val != NULL) {
-    queue_ptr_toupdate_pair_enqueue_checked(
-        &ctx->pointers_toupdate,
-        (struct ptr_toupdate_pair){(struct object **)&env->val,
-                                   (struct object *)env->val});
-  }
-
-  if (env->prev != NULL) {
-    queue_ptr_toupdate_pair_enqueue_checked(
-        &ctx->pointers_toupdate,
-        (struct ptr_toupdate_pair){(struct object **)&env->prev,
-                                   (struct object *)env->prev});
-  }
-
-  for (size_t i = 0; i < env->nexts->length; i++) {
-    struct env_elem **env_ptr = vector_env_elem_nexts_index_ptr(env->nexts, i);
-    queue_ptr_toupdate_pair_enqueue_checked(
-        &ctx->pointers_toupdate,
-        (struct ptr_toupdate_pair){(struct object **)env_ptr,
-                                   (struct object *)*env_ptr});
-  }
-  return (struct object *)env;
+  RUNTIME_ERROR("Actually calling toheap_env!");
 }
 
 void mark_env(struct object *obj, struct gc_context *ctx) {
-  struct env_elem *env = (struct env_elem *)obj;
-
-  // mark both the previous node and all child nodes
-  // such that the entire tree of nodes stays in memory
-  maybe_mark_grey_and_queue(ctx, (struct object *)env->prev);
-
-  for (size_t i = 0; i < env->nexts->length; i++) {
-    struct object *env_ptr =
-        (struct object *)vector_env_elem_nexts_index(env->nexts, i);
-    maybe_mark_grey_and_queue(ctx, env_ptr);
-  }
-  maybe_mark_grey_and_queue(ctx, env->val);
-}
-
-void free_env(struct object *obj) {
-  struct env_elem *env = (struct env_elem *)obj;
-
-  // a -> b -> c
-  //       \-> d
-  // assuming we're freeing b, we need to add the pointers to c and d to a, and
-  // make c and d reference a
-  //
-  // a -> c
-  //  \-> d
-
-  size_t index_in_parent = vector_env_elem_nexts_indexof(env->prev->nexts, env);
-  if (DEBUG_ONLY(index_in_parent >= env->prev->nexts->length)) {
-    RUNTIME_ERROR(
-        "Child environment not a member of it's parent's child array!");
-  }
-
-  // remove ourselves from the array of children in the parent env node
-  vector_env_elem_nexts_remove(env->prev->nexts, index_in_parent);
-
-  for (size_t i = 0; i < env->nexts->length; i++) {
-    struct env_elem *child_ptr = vector_env_elem_nexts_index(env->nexts, i);
-
-    // make the node that would be (a) now reference each of (b)'s children
-    vector_env_elem_nexts_push(env->prev->nexts, child_ptr);
-
-    // make each of (b)'s children reference (a)
-    child_ptr->prev = env->prev;
-  }
-
-  vector_env_elem_nexts_free(env->nexts);
-  free(env->nexts);
+  RUNTIME_ERROR("Actually calling mark_env!");
 }
 
 struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
@@ -356,7 +268,6 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
 }
 
 // The major gc, collects objects on the heap
-// TODO: decide if this will fuck up if used when objects are still on the stack
 void gc_major(struct gc_context *ctx, struct thunk *thnk) {
   gc_mark_obj(ctx, &thnk->closr->base);
 

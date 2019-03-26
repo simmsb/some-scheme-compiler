@@ -11,8 +11,6 @@
 #include "gc.h"
 #include "vec.h"
 
-MAKE_VECTOR(struct env_elem *, env_elem_nexts)
-
 static bool stack_check(void);
 
 static struct thunk *current_thunk;
@@ -127,14 +125,14 @@ void scheme_start(struct thunk *initial_thunk) {
   if (current_thunk->closr->size == CLOSURE_ONE) {
     struct closure *closr = current_thunk->closr;
     struct object *rand = current_thunk->one.rand;
-    struct env_elem *env = current_thunk->closr->env;
+    struct env_table *env = current_thunk->closr->env;
     free(current_thunk);
     closr->fn_1(rand, env);
   } else {
     struct closure *closr = current_thunk->closr;
     struct object *rand = current_thunk->two.rand;
     struct object *cont = current_thunk->two.cont;
-    struct env_elem *env = current_thunk->closr->env;
+    struct env_table *env = current_thunk->closr->env;
     free(current_thunk);
     closr->fn_2(rand, cont, env);
   }
@@ -158,7 +156,7 @@ struct object object_base_new(enum object_tag tag) {
       .tag = tag,
       .mark = WHITE,
       .on_stack = true,
-#ifdef DEBUG
+#ifndef NDEBUG
       .last_touched_by = "object_init",
 #endif
   };
@@ -166,8 +164,8 @@ struct object object_base_new(enum object_tag tag) {
 
 struct closure object_closure_one_new(size_t env_id,
                                       void (*const fn)(struct object *,
-                                                       struct env_elem *),
-                                      struct env_elem *env) {
+                                                       struct env_table *),
+                                      struct env_table *env) {
   return (struct closure){.base = object_base_new(OBJ_CLOSURE),
                           .size = CLOSURE_ONE,
                           .env_id = env_id,
@@ -178,8 +176,8 @@ struct closure object_closure_one_new(size_t env_id,
 struct closure object_closure_two_new(size_t env_id,
                                       void (*const fn)(struct object *,
                                                        struct object *,
-                                                       struct env_elem *),
-                                      struct env_elem *env) {
+                                                       struct env_table *),
+                                      struct env_table *env) {
   return (struct closure){.base = object_base_new(OBJ_CLOSURE),
                           .size = CLOSURE_TWO,
                           .env_id = env_id,
@@ -195,41 +193,32 @@ struct void_obj object_void_obj_new(void) {
   return (struct void_obj){.base = object_base_new(OBJ_VOID)};
 }
 
-struct object *env_get(size_t ident_id, struct env_elem *env) {
-#ifdef DEBUG
-  fprintf(stderr, "looking for %ld in envs:\n", ident_id);
-#endif
-  while (env != NULL) {
-#ifdef DEBUG
-    fprintf(stderr, "%p\n", (void *)env);
-#endif
-    if (env->ident_id == ident_id) {
-      DEBUG_FPRINTF(stderr, "getting %p tag: %d, id: %ld from env %p\n",
-                    (void *)env->val, env->val->tag, ident_id, (void *)env);
+struct object *env_get(size_t ident_id, struct env_table *env) {
+  DEBUG_LOG("looking for %ld in env: %p\n", ident_id, env);
 
-      if (DEBUG_ONLY(env->val->tag > OBJ_STR)) {
-        RUNTIME_ERROR(
-            "Invalid object tag in env: %p tag: %d, id: %ld from env %p\n",
-            (void *)env->val, env->val->tag, ident_id, (void *)env);
-      }
+  if (env->vals[ident_id] != NULL) {
+    struct object *val = env->vals[ident_id];
 
-      return env->val;
+    DEBUG_FPRINTF(stderr, "getting %p tag: %d, id: %ld from env %p\n",
+                  (void *)val, val->tag, ident_id, (void *)env);
+
+    if (DEBUG_ONLY(val->tag > OBJ_STR)) {
+      RUNTIME_ERROR(
+          "Invalid object tag in env: %p tag: %d, id: %ld from env %p\n",
+          (void *)val, val->tag, ident_id, (void *)env);
     }
 
-    env = env->prev;
+    return val;
   }
 
   RUNTIME_ERROR("Value not present in env: %ld");
 }
 
-struct object *env_set(size_t ident_id, struct env_elem *env,
+struct object *env_set(size_t ident_id, struct env_table *env,
                        struct object *obj) {
-  while (env->prev != NULL) {
-    if (env->ident_id == ident_id) {
-      struct object *prev = env->val;
-      env->val = obj;
-      return prev;
-    }
-  }
-  return NULL;
+  struct object *prev = env->vals[ident_id];
+
+  env->vals[ident_id] = obj;
+
+  return prev;
 }

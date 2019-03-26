@@ -9,6 +9,5 @@
 		  (b (lambda (x) ((f f) x))))))
 	 (lambda (f)
        (lambda (n)
-         (println n)
          (f (+ n 1)))))
     0)))
