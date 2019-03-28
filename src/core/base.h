@@ -81,12 +81,12 @@
   } while (0)
 #endif // DEBUG
 
-enum closure_size {
+enum __attribute__((__packed__)) closure_size {
   CLOSURE_ONE = 0,
   CLOSURE_TWO,
 };
 
-enum object_tag {
+enum __attribute__((__packed__)) object_tag {
   OBJ_CLOSURE = 0,
   OBJ_ENV,
   OBJ_INT,
@@ -94,7 +94,7 @@ enum object_tag {
   OBJ_STR,
 };
 
-enum gc_mark_type { WHITE = 0, GREY, BLACK };
+enum __attribute__((__packed__)) gc_mark_type { WHITE = 0, GREY, BLACK };
 
 struct object {
   enum object_tag tag;
@@ -113,7 +113,8 @@ struct env_table {
 };
 
 extern const size_t env_table_map_size;
-#define ENV_TABLE_SIZE (sizeof(struct env_table) + sizeof(struct object *) * env_table_map_size)
+#define ENV_TABLE_SIZE                                                         \
+  (sizeof(struct env_table) + sizeof(struct object *) * env_table_map_size)
 
 struct closure {
   struct object base;
