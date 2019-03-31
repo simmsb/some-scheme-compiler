@@ -91,6 +91,7 @@ struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
     TOUCH_OBJECT(&clos->env->base, "toheap_closure");
     struct env_table *heap_env = gc_malloc(ENV_TABLE_SIZE);
     memcpy(heap_env, clos->env, ENV_TABLE_SIZE);
+    heap_env->base.on_stack = false;
     clos->env = heap_env;
 
     struct env_table_id_map id_map = global_env_table[clos->env_id];
@@ -115,7 +116,10 @@ void mark_closure(struct object *obj, struct gc_context *ctx) {
   struct env_table_id_map id_map = global_env_table[clos->env_id];
 
   for (size_t i = 0; i < id_map.num_ids; i++) {
-    maybe_mark_grey_and_queue(ctx, clos->env->vals[id_map.var_ids[i]]);
+    struct object *val = clos->env->vals[id_map.var_ids[i]];
+    if (val) {
+      maybe_mark_grey_and_queue(ctx, val);
+    }
   }
 
   // manually mark the env as black (it's been so long idk if this matters)
@@ -144,14 +148,7 @@ struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
 }
 
 struct object *toheap_void_obj(struct object *obj, struct gc_context *ctx) {
-  if (obj->on_stack) {
-    TOUCH_OBJECT(obj, "toheap_void");
-    struct int_obj *heap_voidobj = gc_malloc(sizeof(struct void_obj));
-    memcpy(heap_voidobj, obj, sizeof(struct void_obj));
-    obj = (struct object *)heap_voidobj;
-  }
-
-  return obj;
+  return (struct object *) global_void_obj;
 }
 
 struct object *toheap_string_obj(struct object *obj, struct gc_context *ctx) {
@@ -265,10 +262,14 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
   }
 
   DEBUG_FPRINTF(stderr, "after gc, thnk->closr->env = %p\n", thnk->closr->env);
+
+  gc_major(ctx, thnk);
 }
 
 // The major gc, collects objects on the heap
 void gc_major(struct gc_context *ctx, struct thunk *thnk) {
+  size_t num_freed = 0;
+
   gc_mark_obj(ctx, &thnk->closr->base);
 
   switch (thnk->closr->size) {
@@ -298,16 +299,16 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
     }
 
     if (obj->mark == WHITE) {
+      // free it, should this be done if the object is on the stack?
+      if (DEBUG_ONLY(obj->on_stack)) {
+        DEBUG_ONLY(RUNTIME_ERROR("Object (%p, tag: %d, %s) was on the stack during a major GC!", (void *)obj, obj->tag, obj->last_touched_by));
+      }
 
       // execute this object's free function
       gc_func_map[obj->tag].free(obj);
 
-      // free it, should this be done if the object is on the stack?
-      if (DEBUG_ONLY(obj->on_stack)) {
-        RUNTIME_ERROR("Object was on the stack during a major GC!");
-      }
-
       free(obj);
+      num_freed++;
 
       // set the pointer in the vector to null
       *ptr = NULL;
@@ -319,6 +320,9 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
       obj->mark = WHITE;
     }
   }
+
+  printf("freed %zu objects\n", num_freed);
+  gc_heap_maintain();
 }
 
 void gc_init(void) { gc_global_data.nodes = vector_gc_heap_nodes_new(100); }
@@ -326,19 +330,18 @@ void gc_init(void) { gc_global_data.nodes = vector_gc_heap_nodes_new(100); }
 // wrapped malloc that adds allocated stuff to the bookkeeper
 void *gc_malloc(size_t size) {
   void *ptr = malloc(size);
-  for (size_t i = 0; i < gc_global_data.nodes.length; i++) {
-    if (vector_gc_heap_nodes_index(&gc_global_data.nodes, i) == NULL) {
-      vector_gc_heap_nodes_set(&gc_global_data.nodes, ptr, i);
-      return ptr;
-    }
-  }
+
   vector_gc_heap_nodes_push(&gc_global_data.nodes, ptr);
   return ptr;
 }
 
-// clean up the heap, all vector cells containing nulls should be moved to the
-// front of the array of tracked objects, if there is a significant amount of
-// free cells we should move everything up and run a shrink to fit
 void gc_heap_maintain(void) {
-  // TODO: complete this
+  struct vector_gc_heap_nodes new_nodes = vector_gc_heap_nodes_new(gc_global_data.nodes.length);
+
+  for (size_t i = 0; i < gc_global_data.nodes.length; i++) {
+    struct object *obj = vector_gc_heap_nodes_index(&gc_global_data.nodes, i);
+    if (obj != NULL) {
+      vector_gc_heap_nodes_push(&new_nodes, obj);
+    }
+  }
 }

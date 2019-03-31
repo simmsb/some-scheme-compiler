@@ -535,6 +535,12 @@ pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: &[(usize, Env<'a>)]) 
     env_table_id_maps.extend(builtin_envs.iter().map(|CompleteEnv { id, env, .. }| gen_env_table_elem(*id, env)));
     env_table_id_maps.extend(program_envs.iter().map(|(id, env)| gen_env_table_elem(*id, env)));
 
+    let global_env_table_size_decl = CDecl::Var {
+        name: Cow::from("global_env_table_size"),
+        typ: CType::Const(box CType::Other(Cow::from("size_t"))),
+        init: Some(CExpr::LitUInt(env_table_id_maps.len())),
+    };
+
     let global_env_table_decl = CDecl::Var {
         name: Cow::from("global_env_table"),
         typ: CType::Arr(box CType::Const(box CType::Struct(Cow::from("env_table_id_map"))), None),
@@ -568,6 +574,7 @@ pub fn gen_env_ids<'a>(ctx: &mut EnvCtx<'a>, program_envs: &[(usize, Env<'a>)]) 
     let mut results = Vec::new();
     results.push(env_table_map_size_decl);
     results.push(global_env_table_decl);
+    results.push(global_env_table_size_decl);
     results.extend(builtin_var_ids_decl);
     results.extend(builtin_env_ids_decl);
     results

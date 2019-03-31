@@ -109,7 +109,13 @@ static bool stack_check(void) {
   return stack_ptr_val > stack_end_val;
 }
 
+struct void_obj *global_void_obj;
+
 void scheme_start(struct thunk *initial_thunk) {
+  struct void_obj v_obj = object_void_obj_new();
+  global_void_obj = &v_obj;
+  printf("global_void_obj = %p\n", (void *)global_void_obj);
+
   stack_initial = stack_ptr();
   current_thunk = initial_thunk;
 

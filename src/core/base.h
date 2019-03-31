@@ -58,9 +58,8 @@
 #define OBJECT_VOID_OBJ_NEW(NAME)                                              \
   struct object *(NAME);                                                       \
   do {                                                                         \
-    struct void_obj *new_obj = alloca(sizeof(struct void_obj));                \
-    *new_obj = object_void_obj_new();                                          \
-    TOUCH_OBJECT(new_obj, "void_obj_new");                                     \
+    struct void_obj *new_obj = global_void_obj;                                \
+    TOUCH_OBJECT(new_obj, "void_obj_init");                                    \
     (NAME) = (struct object *)new_obj;                                         \
   } while (0)
 
@@ -72,8 +71,8 @@
             (void *)(OBJ), ((struct object *)(OBJ))->tag,                      \
             ((struct object *)(OBJ))->last_touched_by, __func__, __LINE__,     \
             (S));                                                              \
-    ALLOC_SPRINTF(((struct object *)(OBJ))->last_touched_by, "(%s:%d:%s)",     \
-                  __func__, __LINE__, (S));                                    \
+    ALLOC_SPRINTF(((struct object *)(OBJ))->last_touched_by,                   \
+                  "(%s:%d:%s)", __func__, __LINE__, (S));                 \
   } while (0)
 #else
 #define TOUCH_OBJECT(OBJ, S)                                                   \
@@ -87,7 +86,7 @@ enum __attribute__((__packed__)) closure_size {
 };
 
 enum __attribute__((__packed__)) object_tag {
-  OBJ_CLOSURE = 0,
+  OBJ_CLOSURE = 1,
   OBJ_ENV,
   OBJ_INT,
   OBJ_VOID,
@@ -136,6 +135,8 @@ struct void_obj {
   struct object base;
 };
 
+extern struct void_obj *global_void_obj;
+
 struct string_obj {
   struct object base;
   size_t len;
@@ -156,6 +157,7 @@ struct object *env_set(size_t, struct env_table *, struct object *);
 
 // The map of env ids to an array of var ids
 extern struct env_table_id_map const global_env_table[];
+extern const size_t global_env_table_size;
 
 struct thunk {
   struct closure *closr;
