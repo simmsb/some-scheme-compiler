@@ -7,7 +7,7 @@
 #include "common.h"
 #include "vec.h"
 
-#define ADD_ENV(IDENT_ID, VAL, HEAD_PTR)                                       \
+#define ADD_ENV(ENV_ID, IDENT_ID, VAL, HEAD_PTR)                               \
   do {                                                                         \
                                                                                \
     if (DEBUG_ONLY((VAL)->tag > OBJ_STR)) {                                    \
@@ -16,8 +16,15 @@
           (VAL)->tag, (IDENT_ID), (void *)*(HEAD_PTR));                        \
     }                                                                          \
     struct env_table *new_env = alloca(ENV_TABLE_SIZE);                        \
-    memcpy(new_env, *(HEAD_PTR), ENV_TABLE_SIZE);                              \
+    memset(new_env, 0, ENV_TABLE_SIZE);                                        \
     new_env->base = object_base_new(OBJ_ENV);                                  \
+    struct env_table_id_map id_map = global_env_table[ENV_ID];                 \
+                                                                               \
+    for (size_t i = 0; i < id_map.num_ids; i++) {                              \
+      size_t idx = id_map.var_ids[i];                                          \
+      new_env->vals[idx] = (*(HEAD_PTR))->vals[idx];                           \
+    }                                                                          \
+                                                                               \
     new_env->vals[IDENT_ID] = VAL;                                             \
                                                                                \
     TOUCH_OBJECT(VAL, "add_env");                                              \
@@ -71,8 +78,8 @@
             (void *)(OBJ), ((struct object *)(OBJ))->tag,                      \
             ((struct object *)(OBJ))->last_touched_by, __func__, __LINE__,     \
             (S));                                                              \
-    ALLOC_SPRINTF(((struct object *)(OBJ))->last_touched_by,                   \
-                  "(%s:%d:%s)", __func__, __LINE__, (S));                 \
+    ALLOC_SPRINTF(((struct object *)(OBJ))->last_touched_by, "(%s:%d:%s)",     \
+                  __func__, __LINE__, (S));                                    \
   } while (0)
 #else
 #define TOUCH_OBJECT(OBJ, S)                                                   \

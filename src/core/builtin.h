@@ -11,8 +11,8 @@
 
 #define MAKE_ONE_ARG_FROM_BUILTIN(NAME, TYPE, ARG, ENV)                        \
   void NAME##_func(struct object *rand, struct object *cont,                   \
-                   struct env_table *env) {                                     \
-    ADD_ENV(ARG, rand, &env);                                                  \
+                   struct env_table *env) {                                    \
+    ADD_ENV(NAME##_env, ARG, rand, &env);                                      \
                                                                                \
     struct object *lhs = env_get(ARG, env);                                    \
                                                                                \
@@ -22,7 +22,7 @@
   }
 
 #define DEFINE_TWO_ARG_FROM_BUILTIN(NAME)                                      \
-  void NAME##_func(struct object *, struct object *, struct env_table *);       \
+  void NAME##_func(struct object *, struct object *, struct env_table *);      \
   void NAME##_func_2(struct object *, struct object *, struct env_table *)
 
 #define DEFINE_UNOP(NAME)                                                      \
@@ -31,7 +31,7 @@
   DEFINE_ONE_ARG_FROM_BUILTIN(NAME)
 
 #define MAKE_CONSTRUCTOR_BUILTIN(NAME, TYPE)                                   \
-  void NAME##_ctor(TYPE inp, struct object *cont, struct env_table *env) {      \
+  void NAME##_ctor(TYPE inp, struct object *cont, struct env_table *env) {     \
     TYPE result = (NAME)(inp);                                                 \
                                                                                \
     call_closure_one(cont, (struct object *)&result);                          \
@@ -40,8 +40,8 @@
 #define MAKE_TWO_ARG_FROM_BUILTIN(NAME, TYPE, LHS_ARG, RHS_ARG, LHS_ENV,       \
                                   RHS_ENV)                                     \
   void NAME##_func(struct object *rand, struct object *cont,                   \
-                   struct env_table *env) {                                     \
-    ADD_ENV(LHS_ARG, rand, &env);                                              \
+                   struct env_table *env) {                                    \
+    ADD_ENV(NAME##_env, LHS_ARG, rand, &env);                                  \
                                                                                \
     struct closure func_2_clos =                                               \
         object_closure_two_new(LHS_ENV, NAME##_func_2, env);                   \
@@ -49,8 +49,8 @@
     call_closure_one(cont, (struct object *)&func_2_clos);                     \
   }                                                                            \
   void NAME##_func_2(struct object *rand, struct object *cont,                 \
-                     struct env_table *env) {                                   \
-    ADD_ENV(RHS_ARG, rand, &env);                                              \
+                     struct env_table *env) {                                  \
+    ADD_ENV(NAME##_env_2, RHS_ARG, rand, &env);                                \
                                                                                \
     struct object *lhs = env_get(LHS_ARG, env);                                \
                                                                                \

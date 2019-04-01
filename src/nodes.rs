@@ -43,7 +43,7 @@ impl<'a> Env<'a> {
     pub fn new(parent: &Env<'a>, vals: impl IntoIterator<Item=(Cow<'a, str>, usize)>) -> Self {
         let mut new_map = parent.0.clone();
         new_map.extend(vals);
-        Env (new_map)
+        Env(new_map)
     }
 
     pub fn get(&self, key: &str) -> Option<usize> {

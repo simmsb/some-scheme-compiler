@@ -185,13 +185,14 @@ impl CodegenCtx {
 }
 
 
-fn env_set_codegen<'a>(arg: &'a str, env: &Env<'a>) -> CStmt<'a> {
+fn env_set_codegen<'a>(arg: &'a str, env: &Env<'a>, id: usize) -> CStmt<'a> {
     let index = env.get(arg).expect("env has argument");
 
     CStmt::Expr(
         CExpr::MacroCall {
             name: "ADD_ENV".into(),
             args: vec![
+                CExpr::LitUInt(id),
                 CExpr::LitUInt(index),
                 CExpr::Ident(arg.into()),
                 CExpr::PreUnOp {
@@ -220,7 +221,7 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_table")))),
                 ];
 
-                supporting_stmts.push(env_set_codegen(&arg, &env));
+                supporting_stmts.push(env_set_codegen(&arg, &env, *id));
 
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 
@@ -248,8 +249,8 @@ pub fn lambda_codegen<'a>(lams: &'a [LExEnv<'a>]) -> Vec<CDecl<'a>> {
                     (Cow::from("env"), CType::Ptr(box CType::Struct(Cow::from("env_table")))),
                 ];
 
-                supporting_stmts.push(env_set_codegen(&arg, &env));
-                supporting_stmts.push(env_set_codegen(&cont, &env));
+                supporting_stmts.push(env_set_codegen(&arg, &env, *id));
+                supporting_stmts.push(env_set_codegen(&cont, &env, *id));
 
                 let main_expr = CStmt::Expr(codegen(&expr, &mut ctx, &mut supporting_stmts));;
 

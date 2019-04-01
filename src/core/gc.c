@@ -269,23 +269,31 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
 // The major gc, collects objects on the heap
 void gc_major(struct gc_context *ctx, struct thunk *thnk) {
   size_t num_freed = 0;
+  size_t num_marked = 0;
 
   gc_mark_obj(ctx, &thnk->closr->base);
+  num_marked++;
 
   switch (thnk->closr->size) {
   case CLOSURE_ONE:
     gc_mark_obj(ctx, thnk->one.rand);
+    num_marked++;
     break;
   case CLOSURE_TWO:
     gc_mark_obj(ctx, thnk->two.rand);
     gc_mark_obj(ctx, thnk->two.cont);
+    num_marked++;
+    num_marked++;
     break;
   }
 
   while (queue_gc_grey_nodes_len(&ctx->grey_nodes) > 0) {
     struct object *next_obj = queue_gc_grey_nodes_dequeue(&ctx->grey_nodes);
     gc_mark_obj(ctx, next_obj);
+    num_marked++;
   }
+
+  printf("marked %zu objects\n", num_marked);
 
   // go through each heap allocated object and gc them
   // not really the best, but it would be easy to improve
