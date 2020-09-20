@@ -1,18 +1,31 @@
+use nom::character::complete::multispace0;
+use nom::complete;
+use nom::{alt, char};
+use nom::{delimited, escaped, is_not, map, map_res};
+use nom::{many0, one_of, opt, pair, tag, take_while1};
 use std::borrow::Cow;
-use nom;
 
-use crate::nodes::{LExpr, ExprLit};
+use crate::nodes::{ExprLit, LExpr};
 
 fn ident_char(chr: char) -> bool {
     !" ()\n\r\"\'".contains(chr)
 }
 
+macro_rules! ws {
+    ($i:expr, $($args:tt)*) => {
+        delimited!($i, multispace0, $($args)*, multispace0)
+    };
+}
+
 pub fn parse_int(input: &str) -> nom::IResult<&str, LExpr<'_>> {
-    map_res!(input,
-        pair!(opt!(char!('-')), nom::digit),
-        | (sign, num) : (Option<char>, &str) | num.parse::<i64>()
-             .map(|n| if sign.is_some() { -n } else { n })
-             .map(|n| LExpr::Lit(ExprLit::NumLit(n))))
+    map_res!(
+        input,
+        pair!(opt!(char!('-')), take_while1!(|c: char| c.is_digit(10))),
+        |(sign, num): (Option<char>, &str)| num
+            .parse::<i64>()
+            .map(|n| if sign.is_some() { -n } else { n })
+            .map(|n| LExpr::Lit(ExprLit::NumLit(n)))
+    )
 }
 
 pub fn parse_ident(input: &str) -> nom::IResult<&str, Cow<'_, str>> {
@@ -29,37 +42,37 @@ pub fn parse_str(input: &str) -> nom::IResult<&str, LExpr<'_>> {
         delimited!(
             tag!("\""),
             escaped!(is_not!("\""), '\\', one_of!("\"n\\")),
-            tag!("\"")),
-        |s| LExpr::Lit(ExprLit::StringLit(s.into())))
+            tag!("\"")
+        ),
+        |s| LExpr::Lit(ExprLit::StringLit(s.into()))
+    )
 }
 
 #[allow(clippy::cyclomatic_complexity)]
 fn parse_lam(input: &str) -> nom::IResult<&str, LExpr<'_>> {
-    do_parse!(input,
-        char!('(') >>
-        ws!(tag!("lambda")) >>
-        char!('(') >>
-        plist: ws!(many0!(parse_ident)) >>
-        char!(')') >>
-        body: ws!(many0!(parse_exp)) >>
-        char!(')') >>
+    let (i, _) = pair!(input, char!('('), ws!(tag!("lambda")))?;
+    let (i, plist) = delimited!(i, char!('('), many0!(ws!(parse_ident)), char!(')'))?;
+    let (i, body) = ws!(i, many0!(ws!(parse_exp)))?;
+    let (i, _) = char!(i, ')')?;
 
-        (LExpr::Lam(plist, body))
-    )
+    Ok((i, LExpr::Lam(plist, body)))
 }
 
 pub fn parse_app(input: &str) -> nom::IResult<&str, LExpr<'_>> {
-    do_parse!(input,
-        char!('(') >>
-        rand: parse_exp >>
-        rator: ws!(many0!(parse_exp)) >>
-        char!(')') >>
-        (LExpr::App(box rand, rator))
-    )
+    let (i, _) = char!(input, '(')?;
+    let (i, (rand, rator)) = pair!(i, parse_exp, many0!(ws!(parse_exp)))?;
+    let (i, _) = char!(i, ')')?;
+
+    Ok((i, LExpr::App(box rand, rator)))
 }
 
 pub fn parse_exp(input: &str) -> nom::IResult<&str, LExpr<'_>> {
-    alt_complete!(input, parse_int | parse_str | parse_var | parse_lam | parse_app)
+    alt!(
+        input,
+        complete!(parse_int)
+            | complete!(parse_str)
+            | complete!(parse_var)
+            | complete!(parse_lam)
+            | complete!(parse_app)
+    )
 }
-
-

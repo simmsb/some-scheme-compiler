@@ -1,15 +1,5 @@
 #![feature(box_syntax, box_patterns)]
 
-#[macro_use]
-extern crate nom;
-#[macro_use]
-extern crate derive_more;
-#[macro_use]
-extern crate failure;
-
-#[macro_use]
-extern crate include_dir;
-
 pub mod cdsl;
 pub mod codegen;
 pub mod nodes;
@@ -17,8 +7,8 @@ pub mod parse;
 pub mod transform;
 
 use crate::cdsl::*;
-use failure::Error;
-use include_dir::Dir;
+use failure::{Error, format_err};
+use include_dir::{Dir, include_dir};
 use std::{
     borrow::Cow,
     fmt::Write,
@@ -27,7 +17,6 @@ use std::{
     path::PathBuf,
     process::Command,
 };
-use structopt;
 use structopt::StructOpt;
 use tempdir::TempDir;
 
