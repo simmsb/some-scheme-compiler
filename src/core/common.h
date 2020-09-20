@@ -37,7 +37,7 @@
 #endif // NDEBUG
 
 #ifndef NDEBUG
-#define DEBUG_ONLY(expr) (expr)
+#define DEBUG_ONLY(expr) expr
 #else
-#define DEBUG_ONLY(expr) (0)
+#define DEBUG_ONLY(expr) 0
 #endif // NDEBUG
