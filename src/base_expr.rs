@@ -125,11 +125,11 @@ impl BExpr {
                     }
                     [first, rest @ ..] => {
                         let first = Expr::Lam(Scope::new(
-                            Binder(FreeVar::fresh_named(first)),
+                            Binder(env.get(first).unwrap().clone()),
                             Rc::new(body),
                         ));
                         rest.iter().fold(first, |acc, p| {
-                            Expr::Lam(Scope::new(Binder(FreeVar::fresh_named(p)), Rc::new(acc)))
+                            Expr::Lam(Scope::new(Binder(env.get(p).unwrap().clone()), Rc::new(acc)))
                         })
                     }
                 }

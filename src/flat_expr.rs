@@ -157,12 +157,13 @@ impl FExpr {
         match self {
             FExpr::LamOne(s) => {
                 let (param, body) = s.unbind();
+                let free_vars = body.free_vars();
                 let body = clone_rc(body).lift_lambdas_internal(ctx);
                 let id = ctx.get();
                 ctx.add(LiftedLambda::new(
                     id,
                     vec![param.0],
-                    body.free_vars(),
+                    free_vars,
                     Rc::new(body),
                 ));
                 LExpr::Lifted(Ignore(id))
@@ -170,12 +171,13 @@ impl FExpr {
             FExpr::LamTwo(s) => {
                 let (param0, body) = s.unbind();
                 let (param1, body) = body.unbind();
+                let free_vars = body.free_vars();
                 let body = clone_rc(body).lift_lambdas_internal(ctx);
                 let id = ctx.get();
                 ctx.add(LiftedLambda::new(
                     id,
                     vec![param0.0, param1.0],
-                    body.free_vars(),
+                    free_vars,
                     Rc::new(body),
                 ));
                 LExpr::Lifted(Ignore(id))

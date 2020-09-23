@@ -311,6 +311,7 @@ fn do_codegen_internal(
 
             CExpr::Ident(dest.into())
         }
+        // TODO: construct a closure of the builtin
         LExpr::BuiltinIdent(Ignore(i)) => CExpr::Ident(i.to_owned().into()),
         LExpr::Lifted(Ignore(id)) => {
             let lambda = ctx.lambdas.get(id).unwrap();

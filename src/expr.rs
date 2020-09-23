@@ -76,6 +76,6 @@ impl Expr {
     }
 
     pub fn into_fexpr(self, k: Rc<cont_expr::KExpr>) -> flat_expr::FExpr {
-        cont_expr::t_k(self, k).into_fexpr()
+        cont_expr::t_c(self, k).into_fexpr()
     }
 }

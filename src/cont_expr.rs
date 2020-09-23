@@ -204,70 +204,31 @@ impl CCall {
     }
 }
 
-pub fn t_k(expr: Expr, k: Rc<KExpr>) -> CCall {
+fn t_k(expr: Expr, fk: &dyn Fn(Rc<UExpr>) -> CCall) -> CCall {
     match expr {
-        Expr::Lam(_) | Expr::Var(_) | Expr::Lit(_) | Expr::BuiltinIdent(_) => {
-            CCall::KCall(k, Rc::new(m(expr)))
-        }
+        Expr::Lam(_) | Expr::Var(_) | Expr::Lit(_) | Expr::BuiltinIdent(_) => fk(Rc::new(m(expr))),
         Expr::App(f, e) => {
             let rv_v = FreeVar::fresh_named("rv");
             let cont = Rc::new(KExpr::Lam(Scope::new(
                 Binder(rv_v.clone()),
-                Rc::new(CCall::KCall(k, Rc::new(UExpr::Var(Var::Free(rv_v))))),
+                Rc::new(fk(Rc::new(UExpr::Var(Var::Free(rv_v))))),
             )));
 
-            let f_v = FreeVar::fresh_named("f");
-            let e_v = FreeVar::fresh_named("e");
-
-            t_k(
-                clone_rc(f),
-                Rc::new(KExpr::Lam(Scope::new(
-                    Binder(f_v.clone()),
-                    Rc::new(t_k(
-                        clone_rc(e),
-                        Rc::new(KExpr::Lam(Scope::new(
-                            Binder(e_v.clone()),
-                            Rc::new(CCall::UCall(
-                                Rc::new(UExpr::Var(Var::Free(f_v))),
-                                Rc::new(UExpr::Var(Var::Free(e_v))),
-                                cont,
-                            )),
-                        ))),
-                    )),
-                ))),
-            )
+            t_k(clone_rc(f), &|f| {
+                t_k(clone_rc(e.clone()), &|e| CCall::UCall(f.clone(), e.clone(), cont.clone()))
+            })
         }
     }
 }
 
-fn t_c(expr: Expr, c: FreeVar<String>) -> CCall {
-    let c_v = Rc::new(KExpr::Var(Var::Free(c)));
+pub fn t_c(expr: Expr, c: Rc<KExpr>) -> CCall {
     match expr {
         e @ (Expr::Lam(_) | Expr::Var(_) | Expr::Lit(_) | Expr::BuiltinIdent(_)) => {
-            CCall::KCall(c_v, Rc::new(m(e)))
+            CCall::KCall(c, Rc::new(m(e)))
         }
-        Expr::App(f, e) => {
-            let f_v = FreeVar::fresh_named("f");
-            let e_v = FreeVar::fresh_named("e");
-
-            t_k(
-                clone_rc(f),
-                Rc::new(KExpr::Lam(Scope::new(
-                    Binder(f_v.clone()),
-                    Rc::new(t_k(
-                        clone_rc(e),
-                        Rc::new(KExpr::Lam(Scope::new(
-                            Binder(e_v.clone()),
-                            Rc::new(CCall::UCall(
-                                Rc::new(UExpr::Var(Var::Free(f_v))),
-                                Rc::new(UExpr::Var(Var::Free(e_v))),
-                                c_v,
-                            )),
-                        ))),
-                    )),
-                ))),
-            )
-        }
+        Expr::App(f, e) => t_k(clone_rc(f), &|f| {
+            t_k(clone_rc(e.clone()), &|e| CCall::UCall(f.clone(), e, c.clone()))
+        }),
     }
 }
 
@@ -276,7 +237,7 @@ pub fn m(expr: Expr) -> UExpr {
         Expr::Lam(s) => {
             let (p, t) = s.unbind();
             let k = FreeVar::fresh_named("k");
-            let body = t_c(clone_rc(t), k.clone());
+            let body = t_c(clone_rc(t), Rc::new(KExpr::Var(Var::Free(k.clone()))));
             UExpr::Lam(Scope::new(p, Scope::new(Binder(k), Rc::new(body))))
         }
         Expr::Var(v) => UExpr::Var(v),

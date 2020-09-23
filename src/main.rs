@@ -74,6 +74,9 @@ fn main() -> Result<(), Error> {
         eprintln!("\n\nexpr after parsing: ");
         let _ = expr.pretty_print(StandardStream::stderr(ColorChoice::Auto));
         eprintln!("");
+        eprintln!("\n\nexpr after binding: ");
+        let _ = expr.clone().into_expr().pretty_print(StandardStream::stderr(ColorChoice::Auto));
+        eprintln!("");
     }
 
     let k = Rc::new(cont_expr::KExpr::BuiltinIdent(moniker::Ignore(
@@ -91,8 +94,6 @@ fn main() -> Result<(), Error> {
     }
 
     let (expr, lambdas) = expr.into_expr().into_fexpr(k).lift_lambdas();
-
-    return Ok(());
 
     let generated_source = do_codegen(&opts, expr, lambdas)?;
 
