@@ -142,17 +142,18 @@ impl LiftedLambda {
             n => panic!("closure was not one or two parameters, was: {}", n),
         };
 
+        let var_name = ctx.gen_var();
+
         let init_stmt = CStmt::Expr(CExpr::MacroCall {
             name: init_name.into(),
             args: vec![
+                Rc::new(CExpr::Ident(var_name.to_owned().into())),
                 Rc::new(CExpr::Ident(format!("lambda_{}", self.id).into())),
                 env_expr,
             ],
         });
 
         supporting_stmts.push(Rc::new(init_stmt));
-
-        let var_name = ctx.gen_var();
 
         CExpr::PreUnOp {
             op: "&".into(),
