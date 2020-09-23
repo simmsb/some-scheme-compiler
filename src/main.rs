@@ -1,17 +1,23 @@
-#![feature(box_syntax, box_patterns)]
+#![feature(box_syntax, box_patterns, or_patterns)]
 
+pub mod base_expr;
 pub mod cdsl;
 pub mod codegen;
-pub mod nodes;
+pub mod cont_expr;
+pub mod expr;
+pub mod flat_expr;
+pub mod lifted_expr;
+pub mod literals;
 pub mod parse;
-pub mod transform;
+pub mod utils;
 
-use crate::cdsl::*;
-use failure::{Error, format_err};
-use include_dir::{Dir, include_dir};
+use cdsl::ToC;
+use failure::{format_err, Error};
+use include_dir::{include_dir, Dir};
+use std::collections::HashMap;
+use std::fmt::Write;
+use std::rc::Rc;
 use std::{
-    borrow::Cow,
-    fmt::Write,
     fs::{self, read_to_string, File},
     io::{stdin, Read},
     path::PathBuf,
@@ -19,6 +25,8 @@ use std::{
 };
 use structopt::StructOpt;
 use tempdir::TempDir;
+use termcolor::ColorChoice;
+use termcolor::StandardStream;
 
 const RUNTIME_DIR: Dir<'_> = include_dir!("src/core");
 
@@ -62,9 +70,31 @@ fn main() -> Result<(), Error> {
         }
     };
 
-    let (expr, ctx) = do_transforms(&opts, expr)?;
+    if opts.debug {
+        eprintln!("\n\nexpr after parsing: ");
+        let _ = expr.pretty_print(StandardStream::stderr(ColorChoice::Auto));
+        eprintln!("");
+    }
 
-    let generated_source = do_codegen(&opts, expr, ctx)?;
+    let k = Rc::new(cont_expr::KExpr::BuiltinIdent(moniker::Ignore(
+        "exit".into(),
+    )));
+
+    if opts.debug {
+        eprintln!("\n\nexpr after converting: ");
+        let _ = expr
+            .clone()
+            .into_expr()
+            .into_fexpr(k.clone())
+            .pretty_print(StandardStream::stderr(ColorChoice::Auto));
+        eprintln!("");
+    }
+
+    let (expr, lambdas) = expr.into_expr().into_fexpr(k).lift_lambdas();
+
+    return Ok(());
+
+    let generated_source = do_codegen(&opts, expr, lambdas)?;
 
     let full_source = generate_program_source(&generated_source);
 
@@ -185,118 +215,75 @@ int main() {
     )
 }
 
-fn do_transforms<'a>(
+fn do_codegen(
     opts: &Opt,
-    r: nodes::LExpr<'a>,
-) -> Result<(nodes::LExEnv<'a>, codegen::EnvCtx<'a>), Error> {
-    let transforms = &[
-        transform::rename_builtins,
-        transform::transform_lits,
-        transform::expand_lam_app,
-        transform::expand_lam_body,
-    ];
-
-    if opts.debug {
-        eprintln!("{:#?}", r);
-    }
-
-    let mut context = transform::TransformContext::default();
-
-    if opts.debug {
-        eprintln!("{}", r);
-    }
-
-    let r = transforms.into_iter().fold(r, |acc, func| {
-        let r = func(acc, &mut context);
-
-        if opts.debug {
-            eprintln!("{0}\n{0:#?}", r);
-        }
-
-        r
-    });
-
-    let cont = nodes::LExpr::BuiltinIdent(Cow::from("halt_func"), nodes::LamType::OneArg);
-
-    let r = transform::cps_transform_cont(r, cont, &mut context);
-
-    if opts.debug {
-        eprintln!("\n\ncps_transform: {0}\n\n{0:#?}", r);
-    }
-
-    let (expr, ctx) = codegen::resolve_env(r);
-
-    Ok((expr, ctx))
-}
-
-fn do_codegen<'a>(
-    opts: &Opt,
-    expr: nodes::LExEnv<'a>,
-    mut ctx: codegen::EnvCtx<'a>,
+    expr: lifted_expr::LExpr,
+    lambdas: HashMap<usize, lifted_expr::LiftedLambda>,
 ) -> Result<String, Error> {
     let mut output_buffer = String::new();
 
     if opts.debug {
-        eprintln!("\n\nresolved_env: {0}\n\n{0:#?}", expr);
-        eprintln!("{:#?}", ctx);
+        eprintln!("\n\nfinal expr before codegen: ");
+        let _ = expr.pretty_print(StandardStream::stderr(ColorChoice::Auto));
+        eprintln!("");
+
+        for l in lambdas.values() {
+            eprint!("lambda {}: ", l.id);
+            let _ = l
+                .body
+                .pretty_print(StandardStream::stderr(ColorChoice::Auto));
+            eprintln!("");
+        }
     }
 
-    let (root, lambdas) = codegen::extract_lambdas(expr);
-    if opts.debug {
-        eprintln!("root: {:#?}\n\nlambdas: {:#?}", root, lambdas);
+    let (root_stmts, protos, decls) = codegen::do_codegen(expr, &lambdas);
+
+    for proto in &protos {
+        writeln!(&mut output_buffer, "{}", proto.export())?;
     }
 
-    let lambdas_vec: Vec<_> = lambdas.values().cloned().collect();
-
-    let compiled_lambdas = codegen::lambda_codegen(&lambdas_vec);
-
-    if opts.debug {
-        eprintln!("\nCompiled lambdas:\n");
-        eprintln!("{:#?}", compiled_lambdas);
-    }
-
-    let lambda_protos = codegen::lambda_proto_codegen(&lambdas_vec);
-
-    for lam_proto in &lambda_protos {
-        writeln!(&mut output_buffer, "{}", lam_proto.export())?;
-    }
-
-    for lam in &compiled_lambdas {
-        writeln!(&mut output_buffer, "{}", lam.export())?;
-    }
-
-    let mut supporting_stmts = Vec::new();
-    let mut codegen_ctx = codegen::CodegenCtx::default();
-
-    let compiled_root = codegen::codegen(&root, &mut codegen_ctx, &mut supporting_stmts);
-    let compiled_root = cdsl::CStmt::Expr(compiled_root);
-
-    supporting_stmts.push(compiled_root);
-
-    let main_fn = cdsl::CDecl::Fun {
-        name: Cow::from("main_lambda"),
-        typ: cdsl::CType::Static(box cdsl::CType::Void),
-        args: vec![
-            (
-                Cow::from("_"),
-                CType::Ptr(box CType::Struct(Cow::from("object"))),
-            ),
-            (
-                Cow::from("env"),
-                CType::Ptr(box CType::Struct(Cow::from("env_table"))),
-            ),
-        ],
-        body: supporting_stmts,
-    };
-
-    writeln!(&mut output_buffer, "{}", main_fn.export())?;
-
-    let envs = ctx.lam_map.clone();
-    let generated_env_ids = codegen::gen_env_ids(&mut ctx, &envs);
-
-    for decl in &generated_env_ids {
+    for decl in &decls {
         writeln!(&mut output_buffer, "{}", decl.export())?;
     }
 
+    for root_stmt in root_stmts {
+        writeln!(&mut output_buffer, "{}", root_stmt.export())?;
+    }
+
     Ok(output_buffer)
+
+    // let mut supporting_stmts = Vec::new();
+    // let mut codegen_ctx = codegen::CodegenCtx::default();
+
+    // let compiled_root = codegen::codegen(&root, &mut codegen_ctx, &mut supporting_stmts);
+    // let compiled_root = cdsl::CStmt::Expr(compiled_root);
+
+    // supporting_stmts.push(compiled_root);
+
+    // let main_fn = cdsl::CDecl::Fun {
+    //     name: Cow::from("main_lambda"),
+    //     typ: cdsl::CType::Static(box cdsl::CType::Void),
+    //     args: vec![
+    //         (
+    //             Cow::from("_"),
+    //             CType::Ptr(box CType::Struct(Cow::from("object"))),
+    //         ),
+    //         (
+    //             Cow::from("env"),
+    //             CType::Ptr(box CType::Struct(Cow::from("env_table"))),
+    //         ),
+    //     ],
+    //     body: supporting_stmts,
+    // };
+
+    // writeln!(&mut output_buffer, "{}", main_fn.export())?;
+
+    // let envs = ctx.lam_map.clone();
+    // let generated_env_ids = codegen::gen_env_ids(&mut ctx, &envs);
+
+    // for decl in &generated_env_ids {
+    //     writeln!(&mut output_buffer, "{}", decl.export())?;
+    // }
+
+    // Ok(output_buffer)
 }

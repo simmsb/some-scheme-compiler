@@ -1,35 +1,48 @@
-use std::{borrow::Cow, boxed::Box};
+use std::fmt::Debug;
+use std::{borrow::Cow, rc::Rc};
+use std::fmt::Write;
+
+pub trait ToCDC: ToC + Debug {}
+impl<T: ToC + Debug> ToCDC for T {}
 
 #[derive(Debug)]
 pub enum CExpr<'a> {
     BinOp {
         op: Cow<'a, str>,
-        left: Box<CExpr<'a>>,
-        right: Box<CExpr<'a>>,
+        left: Rc<CExpr<'a>>,
+        right: Rc<CExpr<'a>>,
     },
     PreUnOp {
         op: Cow<'a, str>,
-        ex: Box<CExpr<'a>>,
+        ex: Rc<CExpr<'a>>,
     },
     PostUnOp {
         op: Cow<'a, str>,
-        ex: Box<CExpr<'a>>,
+        ex: Rc<CExpr<'a>>,
     },
     ArrIndexOp {
-        index: Box<CExpr<'a>>,
-        expr: Box<CExpr<'a>>,
+        index: Rc<CExpr<'a>>,
+        expr: Rc<CExpr<'a>>,
+    },
+    Dot {
+        expr: Rc<CExpr<'a>>,
+        attr: Cow<'a, str>,
+    },
+    Arrow {
+        expr: Rc<CExpr<'a>>,
+        attr: Cow<'a, str>,
     },
     FunCallOp {
-        expr: Box<CExpr<'a>>,
-        ands: Vec<CExpr<'a>>,
+        expr: Rc<CExpr<'a>>,
+        params: Vec<Rc<CExpr<'a>>>,
     },
     Cast {
-        ex: Box<CExpr<'a>>,
+        ex: Rc<CExpr<'a>>,
         typ: CType<'a>,
     },
     MacroCall {
         name: Cow<'a, str>,
-        args: Vec<CExpr<'a>>,
+        args: Vec<Rc<dyn ToCDC + 'a>>,
     },
     InitList(Vec<CExpr<'a>>),
     Ident(Cow<'a, str>),
@@ -40,14 +53,14 @@ pub enum CExpr<'a> {
 
 #[derive(Debug)]
 pub enum CType<'a> {
-    Ptr(Box<CType<'a>>),
-    Arr(Box<CType<'a>>, Option<usize>),
+    Ptr(Rc<CType<'a>>),
+    Arr(Rc<CType<'a>>, Option<usize>),
     Int { size: usize, sign: bool },
     Struct(Cow<'a, str>),
     Union(Cow<'a, str>),
     Other(Cow<'a, str>),
-    Static(Box<CType<'a>>),
-    Const(Box<CType<'a>>),
+    Static(Rc<CType<'a>>),
+    Const(Rc<CType<'a>>),
     Void,
 }
 
@@ -55,17 +68,17 @@ pub enum CType<'a> {
 pub enum CStmt<'a> {
     IF {
         cond: CExpr<'a>,
-        body: Box<CStmt<'a>>,
+        body: Rc<CStmt<'a>>,
     },
     While {
         cond: CExpr<'a>,
-        body: Box<CStmt<'a>>,
+        body: Rc<CStmt<'a>>,
     },
     For {
         init: CExpr<'a>,
         test: CExpr<'a>,
         updt: CExpr<'a>,
-        body: Box<CStmt<'a>>,
+        body: Rc<CStmt<'a>>,
     },
     Decl(CDecl<'a>),
     Block(Vec<CStmt<'a>>),
@@ -84,7 +97,7 @@ pub enum CDecl<'a> {
         name: Cow<'a, str>,
         typ: CType<'a>,
         args: Vec<(Cow<'a, str>, CType<'a>)>,
-        body: Vec<CStmt<'a>>,
+        body: Vec<Rc<CStmt<'a>>>,
     },
     Struct {
         name: Cow<'a, str>,
@@ -111,6 +124,7 @@ pub trait ToC {
     }
 }
 
+
 macro_rules! export_helper {
     ($s:ident, str $e:expr) => ( $s.push_str($e) );
     ($s:ident, chr $e:expr) => ( $s.push($e) );
@@ -122,7 +136,7 @@ macro_rules! export_helper {
             expr.export_internal(&mut $s);
         }
         for elem in it {
-            $s.push(',');
+            let _ = write!($s, ",");
             elem.export_internal(&mut $s);
         }
     });
@@ -169,12 +183,18 @@ impl<'a> ToC for CExpr<'a> {
                 exp index,
                 chr ')'
             ),
-            FunCallOp { expr, ands } => export_helper!(
+            Dot { expr, attr } => export_helper!(
+                s, chr '(', exp expr, str ").", str attr
+            ),
+            Arrow { expr, attr } => export_helper!(
+                s, chr '(', exp expr, str ")->", str attr
+            ),
+            FunCallOp { expr, params } => export_helper!(
                 s,
                 chr '(',
                 exp expr,
                 str ")(",
-                vec_csep ands,
+                vec_csep params,
                 chr ')'
             ),
             Cast { ex, typ } => export_helper!(
@@ -214,44 +234,64 @@ impl<'a> ToC for CExpr<'a> {
 
 impl<'a> ToC for CType<'a> {
     fn export_internal(&self, s: &mut String) {
-        s.push_str(&self.export_with_name(""));
+        self.export_with_name(s, &|_s| {});
     }
 }
 
 impl<'a> CType<'a> {
-    fn export_with_name(&self, name: &str) -> String {
+    fn export_with_name(&self, s: &mut String, name_writer: &dyn Fn(&mut String)) {
         use self::CType::*;
 
-        let mut typ = Some(self);
-        let mut gen = name.to_owned();
-
-        while let Some(typ_o) = typ.take() {
-            gen = match typ_o {
-                Ptr(..) => format!("*{}", gen),
-                Arr(_, None) => format!("({})[]", gen),
-                Arr(_, Some(len)) => format!("({})[{}]", gen, len),
-                Int { size, sign } => {
-                    let name = format!("{}int{}_t", if *sign { "u" } else { "" }, size);
-                    format!("{} {}", name, gen)
-                }
-                Struct(tname) => format!("struct {} {}", tname, gen),
-                Union(tname) => format!("union {} {}", tname, gen),
-                Other(tname) => format!("{} {}", tname, gen),
-                Static(..) => format!("static {}", gen),
-                Const(..) => format!("const {}", gen),
-                Void => format!("void {}", gen),
-            };
-
-            match typ_o {
-                Ptr(to) => typ = Some(to),
-                Arr(of, ..) => typ = Some(of),
-                Static(of) => typ = Some(of),
-                Const(of) => typ = Some(of),
-                _ => (),
-            };
-        }
-
-        gen
+        match self {
+            Ptr(to) =>
+                to.export_with_name(s, &|s| {
+                    let _ = write!(s, "*");
+                    name_writer(s);
+                    let _ = write!(s, "");
+                }),
+            Arr(of, None) =>
+                of.export_with_name(s, &|s| {
+                    let _ = write!(s, "");
+                    name_writer(s);
+                    s.push_str("[]");
+                }),
+            Arr(of, Some(len)) =>
+                of.export_with_name(s, &|s| {
+                    let _ = write!(s, "");
+                    name_writer(s);
+                    let _ = write!(s, "[{}]", len);
+                }),
+            Int { size, sign } => {
+                let _ = write!(s, "{}int{}_t", if *sign { "u" } else { "" }, size);
+                name_writer(s);
+            }
+            Struct(tname) => {
+                let _ = write!(s, "struct {} ", tname);
+                name_writer(s);
+            }
+            Union(tname) => {
+                let _ = write!(s, "union {} ", tname);
+                name_writer(s);
+            }
+            Other(tname) => {
+                let _ = write!(s, "{} ", tname);
+                name_writer(s);
+            }
+            Static(of) =>
+                of.export_with_name(s, &|s| {
+                    let _ = write!(s, "static ");
+                    name_writer(s);
+                }),
+            Const(of) =>
+                of.export_with_name(s, &|s| {
+                    let _ = write!(s, "const ");
+                    name_writer(s);
+                }),
+            Void => {
+                let _ = write!(s, "void ");
+                name_writer(s);
+            }
+        };
     }
 }
 
@@ -317,31 +357,28 @@ impl<'a> ToC for CDecl<'a> {
                 args,
                 noreturn,
             } => {
-                let mut f = String::new();
+                typ.export_with_name(s, &|s| {
+                    let _ = write!(s, "{}(", name);
 
-                f.push_str(&name);
-                f.push('(');
+                    let mut it = args.iter();
 
-                let mut it = args.iter();
+                    if let Some(atyp) = it.next() {
+                        atyp.export_with_name(s, &|_s| {});
+                    }
 
-                if let Some(atyp) = it.next() {
-                    f.push_str(&atyp.export_with_name(""));
-                }
+                    for atyp in it {
+                        let _ = write!(s, ", ");
+                        atyp.export_with_name(s, &|_s| {});
+                    }
 
-                for atyp in it {
-                    f.push_str(", ");
-                    f.push_str(&atyp.export_with_name(""));
-                }
+                    let _ = write!(s, ")");
 
-                f.push(')');
+                    if *noreturn {
+                        let _ = write!(s, "__attribute__((noreturn)) ");
+                    }
+                });
 
-                if *noreturn {
-                    f.push_str("__attribute__((noreturn)) ");
-                }
-
-                s.push_str(&typ.export_with_name(&f));
-
-                s.push(';');
+                let _ = write!(s, ";");
             }
             Fun {
                 name,
@@ -349,25 +386,22 @@ impl<'a> ToC for CDecl<'a> {
                 args,
                 body,
             } => {
-                let mut f = String::new();
+                typ.export_with_name(s, &|s| {
+                    let _ = write!(s, "{}(", name);
 
-                f.push_str(&name);
-                f.push('(');
+                    let mut it = args.iter();
 
-                let mut it = args.iter();
+                    if let Some((aname, atyp)) = it.next() {
+                        atyp.export_with_name(s, &|s| { s.push_str(aname); });
+                    }
 
-                if let Some((aname, atyp)) = it.next() {
-                    f.push_str(&atyp.export_with_name(aname));
-                }
+                    for (aname, atyp) in it {
+                        let _ = write!(s, ", ");
+                        atyp.export_with_name(s, &|s| { s.push_str(aname); });
+                    }
 
-                for (aname, atyp) in it {
-                    f.push_str(", ");
-                    f.push_str(&atyp.export_with_name(aname));
-                }
-
-                f.push(')');
-
-                s.push_str(&typ.export_with_name(&f));
+                    let _ = write!(s, ")");
+                });
 
                 export_helper!(s,
                                chr '{',
@@ -376,37 +410,29 @@ impl<'a> ToC for CDecl<'a> {
                 );
             }
             Struct { name, members } => {
-                export_helper!(s,
-                               str "struct ",
-                               str name,
-                               chr '{'
-                );
+                let _ = write!(s, "struct {} {{", name);
 
                 for (aname, atyp) in members {
-                    s.push_str(&atyp.export_with_name(aname));
-                    s.push(';');
+                    atyp.export_with_name(s, &|s| { s.push_str(aname); });
+                    let _ = write!(s, ";");
                 }
-                s.push(';');
+                let _ = write!(s, "}};");
             }
             Union { name, members } => {
-                export_helper!(s,
-                               str "union ",
-                               str name,
-                               chr '{'
-                );
+                let _ = write!(s, "union {} {{", name);
 
                 for (aname, atyp) in members {
-                    s.push_str(&atyp.export_with_name(aname));
-                    s.push(';');
+                    atyp.export_with_name(s, &|s| { s.push_str(aname); });
+                    let _ = write!(s, ";");
                 }
-                s.push(';');
+                let _ = write!(s, "}};");
             }
             Var { name, typ, init } => {
-                s.push_str(&typ.export_with_name(name));
+                typ.export_with_name(s, &|s| { s.push_str(name); });
                 if let Some(init) = init {
                     export_helper!(s, str " = ", exp init);
                 }
-                s.push(';');
+                let _ = write!(s, ";");
             }
         }
     }

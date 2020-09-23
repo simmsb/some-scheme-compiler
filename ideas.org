@@ -1,16 +1,7 @@
 #+TITLE: Notes about stuff
 
-
-- We need a way to generate the id's for variables and build env tables for
-  builtin functions, we should do this by having a table of builtin variables and
-  builtin functions, on the C side builtin variables will have an externed
-  =var_id= that is supplied by the code that the compiler generates, aswell as
-  an externed =env_id= for builtin functions, which will be included in the env table
-
 * TODO
-- Make sure that we don't have any objects that can be allocated on the stack
-  but then allocate non-shared pointers to the heap (resulting in memory leaks)
-- There's some bug that causes us to generate code that creates a two var
-  closure then invokes it as a one var closure, and vice versa
-- Remove the transform_lits transformation, it's a noop atm.
-- Make throwaway variables actually throw away, don't add to environment.
+- Generate an env struct for each closure
+- Generate GC inspect function for each closure env
+- The parameters of a closure can be filled in by the caller, instead of the
+  closure body
