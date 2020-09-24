@@ -90,7 +90,7 @@ impl BExpr {
     fn into_expr_inner(self, env: &HashMap<String, FreeVar<String>>) -> Expr {
         match self {
             BExpr::Var(n) => Expr::Var(Var::Free(
-                env.get(&n).expect(&format!("unbound arg: {}", n)).clone(),
+                env.get(&n).unwrap_or_else(|| panic!("unbound arg: {}", n)).clone(),
             )),
             BExpr::Lit(l) => Expr::Lit(Ignore(l)),
             BExpr::BuiltinIdent(l) => Expr::BuiltinIdent(Ignore(l)),

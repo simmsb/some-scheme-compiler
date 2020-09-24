@@ -6,13 +6,14 @@
 #include "common.h"
 #include "gc.h"
 #include "queue.h"
-#include "tree.h"
+#include "hash_table.h"
 #include "vec.h"
 
-MAKE_VECTOR(struct object *, gc_heap_nodes)
-MAKE_VECTOR(size_t, size_t)
-MAKE_QUEUE(struct object *, gc_grey_nodes)
-MAKE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair)
+MAKE_VECTOR(struct obj *, gc_heap_nodes);
+MAKE_VECTOR(size_t, size_t);
+MAKE_QUEUE(struct obj *, gc_grey_nodes);
+MAKE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair);
+MAKE_HASH(struct obj *, ptr_map);
 
 static struct gc_data gc_global_data;
 
@@ -27,9 +28,6 @@ static struct gc_funcs gc_func_map[] = {
     [OBJ_INT] = (struct gc_funcs){.toheap = toheap_int_obj,
                                   .mark = gc_mark_noop,
                                   .free = gc_free_noop},
-    [OBJ_VOID] = (struct gc_funcs){.toheap = toheap_void_obj,
-                                   .mark = gc_mark_noop,
-                                   .free = gc_free_noop},
     [OBJ_STR] =
         (struct gc_funcs){
             .toheap = toheap_string_obj,
@@ -40,19 +38,18 @@ static struct gc_funcs gc_func_map[] = {
 
 // This does nothing, the gc will call free() on the object if it was heap
 // allocated
-void gc_free_noop(struct object *obj) { (void)obj; }
+void gc_free_noop(struct obj *obj) { (void)obj; }
 
 // This does nothing, for objects where marking them should mark them as black
 // and nothing more
-void gc_mark_noop(struct object *obj, struct gc_context *ctx) {
+void gc_mark_noop(struct obj *obj, struct gc_context *ctx) {
   (void)obj;
   (void)ctx;
 }
 
 // Mark an object as grey and add it to the queue of grey nodes 'if' it is not
 // already grey or black
-static bool maybe_mark_grey_and_queue(struct gc_context *ctx,
-                                      struct object *obj) {
+static bool maybe_mark_grey_and_queue(struct gc_context *ctx, struct obj *obj) {
   switch (obj->mark) {
   case BLACK:
   case GREY:
@@ -64,77 +61,62 @@ static bool maybe_mark_grey_and_queue(struct gc_context *ctx,
   }
 }
 
-void queue_ptr_toupdate_pair_enqueue_checked(
-    struct queue_ptr_toupdate_pair *queue, struct ptr_toupdate_pair elem) {
-  assert(elem.on_stack != NULL);
-  assert(elem.toupdate != NULL);
+struct obj *toheap_env(struct obj *env_obj, struct gc_context *ctx) {
+  struct obj_env *env = (struct obj_env *)env_obj;
+  struct obj_env *orig_env = env;
 
-  // if the target is already on the heap, no need to copy it
-  if (!elem.on_stack->on_stack) {
-    return;
+  if (env->base.on_stack) {
+    TOUCH_OBJECT(env, "toheap_env");
+    struct obj_env *heap_env =
+        gc_malloc(sizeof(struct obj_env) + env->len * sizeof(struct obj *));
+
+    heap_env->base = env->base;
+    heap_env->len = env->len;
+    env = heap_env;
   }
 
-  queue_ptr_toupdate_pair_enqueue(queue, elem);
+  for (size_t i = 0; i < env->len; i++) {
+    env->env[i] = gc_toheap(ctx, orig_env->env[i]);
+  }
+
+  return (struct obj*)env;
 }
 
-struct object *toheap_closure(struct object *obj, struct gc_context *ctx) {
-  struct closure *clos = (struct closure *)obj;
+void mark_env(struct obj *env_obj, struct gc_context *ctx) {
+  struct obj_env *env = (struct obj_env *)env_obj;
+  for (size_t i = 0; i < env->len; i++) {
+    maybe_mark_grey_and_queue(ctx, env->env[i]);
+  }
+}
+
+struct obj *toheap_closure(struct obj *obj, struct gc_context *ctx) {
+  struct closure_obj *clos = (struct closure_obj *)obj;
 
   if (obj->on_stack) {
     TOUCH_OBJECT(obj, "toheap_closure");
-    struct closure *heap_clos = gc_malloc(sizeof(struct closure));
-    memcpy(heap_clos, obj, sizeof(struct closure));
+    struct closure_obj *heap_clos = gc_malloc(sizeof(struct closure_obj));
+    memcpy(heap_clos, obj, sizeof(struct closure_obj));
     clos = heap_clos;
   }
 
-  if (clos->env->base.on_stack) {
+  if (clos->env && clos->env->base.on_stack) {
     TOUCH_OBJECT(&clos->env->base, "toheap_closure");
-    struct env_table *heap_env = gc_malloc(ENV_TABLE_SIZE);
-    memcpy(heap_env, clos->env, ENV_TABLE_SIZE);
-    heap_env->base.on_stack = false;
-    clos->env = heap_env;
 
-    struct env_table_id_map id_map = global_env_table[clos->env_id];
-
-    for (size_t i = 0; i < id_map.num_ids; i++) {
-      if (clos->env->vals[id_map.var_ids[i]] == NULL) {
-        continue;
-      }
-
-      queue_ptr_toupdate_pair_enqueue_checked(&ctx->pointers_toupdate, (struct ptr_toupdate_pair){
-        .on_stack = clos->env->vals[id_map.var_ids[i]],
-        .toupdate = &clos->env->vals[id_map.var_ids[i]]});
-    }
+    clos->env = (struct obj_env *)gc_toheap(ctx, (struct obj *)clos->env);
   }
 
-  return (struct object *)clos;
+  return (struct obj *)clos;
 }
 
-void mark_closure(struct object *obj, struct gc_context *ctx) {
-  struct closure *clos = (struct closure *)obj;
+void mark_closure(struct obj *obj, struct gc_context *ctx) {
+  struct closure_obj *clos = (struct closure_obj *)obj;
 
-  struct env_table_id_map id_map = global_env_table[clos->env_id];
-
-  for (size_t i = 0; i < id_map.num_ids; i++) {
-    struct object *val = clos->env->vals[id_map.var_ids[i]];
-    if (val) {
-      maybe_mark_grey_and_queue(ctx, val);
-    }
+  if (clos->env) {
+    gc_mark_obj(ctx, (struct obj *)clos->env);
   }
-
-  // manually mark the env as black (it's been so long idk if this matters)
-  clos->env->base.mark = BLACK;
 }
 
-struct object *toheap_env(struct object *obj, struct gc_context *ctx) {
-  RUNTIME_ERROR("Actually calling toheap_env!");
-}
-
-void mark_env(struct object *obj, struct gc_context *ctx) {
-  RUNTIME_ERROR("Actually calling mark_env!");
-}
-
-struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
+struct obj *toheap_int_obj(struct obj *obj, struct gc_context *ctx) {
   struct int_obj *intobj = (struct int_obj *)obj;
 
   if (obj->on_stack) {
@@ -144,14 +126,10 @@ struct object *toheap_int_obj(struct object *obj, struct gc_context *ctx) {
     intobj = heap_intobj;
   }
 
-  return (struct object *)intobj;
+  return (struct obj *)intobj;
 }
 
-struct object *toheap_void_obj(struct object *obj, struct gc_context *ctx) {
-  return (struct object *) global_void_obj;
-}
-
-struct object *toheap_string_obj(struct object *obj, struct gc_context *ctx) {
+struct obj *toheap_string_obj(struct obj *obj, struct gc_context *ctx) {
   struct string_obj *strobj = (struct string_obj *)obj;
 
   if (obj->on_stack) {
@@ -165,49 +143,53 @@ struct object *toheap_string_obj(struct object *obj, struct gc_context *ctx) {
     strobj = heap_stringobj;
   }
 
-  return (struct object *)strobj;
+  return (struct obj *)strobj;
 }
 
 struct gc_context gc_make_context(void) {
   return (struct gc_context){
       .grey_nodes = queue_gc_grey_nodes_new(10),
       .pointers_toupdate = queue_ptr_toupdate_pair_new(10),
-      .updated_pointers = ptr_bst_new(),
+      .updated_pointers = hash_table_ptr_map_new(),
   };
 }
 
 void gc_free_context(struct gc_context *ctx) {
   queue_gc_grey_nodes_free(&ctx->grey_nodes);
   queue_ptr_toupdate_pair_free(&ctx->pointers_toupdate);
-  ptr_bst_free(&ctx->updated_pointers);
+  hash_table_ptr_map_free(ctx->updated_pointers);
 }
 
-static void gc_mark_obj(struct gc_context *ctx, struct object *obj) {
+void gc_mark_obj(struct gc_context *ctx, struct obj *obj) {
   obj->mark = BLACK;
   gc_func_map[obj->tag].mark(obj, ctx);
 }
 
 // Moves all live objects on the stack over to the heap
-struct object *gc_toheap(struct gc_context *ctx, struct object *obj) {
-  assert(obj != NULL);
+struct obj *gc_toheap(struct gc_context *ctx, struct obj *obj) {
+  if (!obj) {
+    return NULL;
+  }
 
   // if we've already copied this object,
   // we know that anything it points to must also be sorted
-  struct object *maybe_copied = ptr_bst_get(&ctx->updated_pointers, obj);
+  struct obj **maybe_copied = hash_table_ptr_map_lookup(
+      ctx->updated_pointers, (size_t)obj);
   if (maybe_copied != NULL) {
-    return maybe_copied;
+    return *maybe_copied;
   }
 
-  struct object *new_obj = gc_func_map[obj->tag].toheap(obj, ctx);
+  DEBUG_FPRINTF(stderr, "copying object of type: %u to heap\n", obj->tag);
+
+  struct obj *new_obj = gc_func_map[obj->tag].toheap(obj, ctx);
 
   // mark the object as now being on the heap
   new_obj->on_stack = false;
 
-  // Add it to the updated tree
+  // Add it to the updated map
   // Even if it was on the heap already we still insert
   // since we then won't process child objects further
-  struct ptr_pair pair = {.old = obj, .new = new_obj};
-  ptr_bst_insert(&ctx->updated_pointers, pair);
+  hash_table_ptr_map_insert(ctx->updated_pointers, (size_t)obj, new_obj);
 
   return new_obj;
 }
@@ -220,7 +202,7 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
   DEBUG_FPRINTF(stderr, "before gc, thnk->closr->env = %p\n", thnk->closr->env);
 
   // initially mark the closure and it's arguments to be applied
-  thnk->closr = (struct closure *)gc_toheap(ctx, (struct object *)thnk->closr);
+  thnk->closr = (struct closure_obj *)gc_toheap(ctx, (struct obj *)thnk->closr);
 
   switch (thnk->closr->size) {
   case CLOSURE_ONE:
@@ -242,21 +224,19 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
   while (queue_ptr_toupdate_pair_len(&ctx->pointers_toupdate) > 0) {
     struct ptr_toupdate_pair to_update =
         queue_ptr_toupdate_pair_dequeue(&ctx->pointers_toupdate);
-    struct object *maybe_copied =
-        ptr_bst_get(&ctx->updated_pointers, to_update.on_stack);
+    struct obj **maybe_copied =
+        hash_table_ptr_map_lookup(ctx->updated_pointers, (size_t)to_update.on_stack);
     if (maybe_copied != NULL) {
       // we've already updated this pointer, just update the pointer that
       // needs to be updated
-      *to_update.toupdate = maybe_copied;
+      *to_update.toupdate = *maybe_copied;
     } else {
       // we haven't seen this yet, perform a copy and update
 
       assert(to_update.on_stack != NULL);
 
-      struct object *on_heap = gc_toheap(ctx, to_update.on_stack);
-      ptr_bst_insert(&ctx->updated_pointers,
-                     (struct ptr_pair){to_update.on_stack, on_heap});
-
+      struct obj *on_heap = gc_toheap(ctx, to_update.on_stack);
+      hash_table_ptr_map_insert(ctx->updated_pointers, (size_t)to_update.on_stack, on_heap);
       *to_update.toupdate = on_heap;
     }
   }
@@ -288,7 +268,7 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
   }
 
   while (queue_gc_grey_nodes_len(&ctx->grey_nodes) > 0) {
-    struct object *next_obj = queue_gc_grey_nodes_dequeue(&ctx->grey_nodes);
+    struct obj *next_obj = queue_gc_grey_nodes_dequeue(&ctx->grey_nodes);
     gc_mark_obj(ctx, next_obj);
     num_marked++;
   }
@@ -298,9 +278,8 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
   // go through each heap allocated object and gc them
   // not really the best, but it would be easy to improve
   for (size_t i = 0; i < gc_global_data.nodes.length; i++) {
-    struct object **ptr =
-        vector_gc_heap_nodes_index_ptr(&gc_global_data.nodes, i);
-    struct object *obj = *ptr;
+    struct obj **ptr = vector_gc_heap_nodes_index_ptr(&gc_global_data.nodes, i);
+    struct obj *obj = *ptr;
 
     if (obj == NULL) {
       continue;
@@ -309,7 +288,9 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
     if (obj->mark == WHITE) {
       // free it, should this be done if the object is on the stack?
       if (DEBUG_ONLY(obj->on_stack)) {
-        DEBUG_ONLY(RUNTIME_ERROR("Object (%p, tag: %d, %s) was on the stack during a major GC!", (void *)obj, obj->tag, obj->last_touched_by));
+        DEBUG_ONLY(RUNTIME_ERROR(
+            "Object (%p, tag: %d, %s) was on the stack during a major GC!",
+            (void *)obj, obj->tag, obj->last_touched_by));
       }
 
       // execute this object's free function
@@ -344,10 +325,11 @@ void *gc_malloc(size_t size) {
 }
 
 void gc_heap_maintain(void) {
-  struct vector_gc_heap_nodes new_nodes = vector_gc_heap_nodes_new(gc_global_data.nodes.length);
+  struct vector_gc_heap_nodes new_nodes =
+      vector_gc_heap_nodes_new(gc_global_data.nodes.length);
 
   for (size_t i = 0; i < gc_global_data.nodes.length; i++) {
-    struct object *obj = vector_gc_heap_nodes_index(&gc_global_data.nodes, i);
+    struct obj *obj = vector_gc_heap_nodes_index(&gc_global_data.nodes, i);
     if (obj != NULL) {
       vector_gc_heap_nodes_push(&new_nodes, obj);
     }

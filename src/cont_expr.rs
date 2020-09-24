@@ -215,7 +215,7 @@ fn t_k(expr: Expr, fk: &dyn Fn(Rc<UExpr>) -> CCall) -> CCall {
             )));
 
             t_k(clone_rc(f), &|f| {
-                t_k(clone_rc(e.clone()), &|e| CCall::UCall(f.clone(), e.clone(), cont.clone()))
+                t_k(clone_rc(e.clone()), &|e| CCall::UCall(f.clone(), e, cont.clone()))
             })
         }
     }

@@ -17,13 +17,13 @@ static struct thunk *current_thunk;
 static void *stack_initial;
 static jmp_buf setjmp_env_buf;
 
-void call_closure_one(struct object *rator, struct object *rand) {
+void call_closure_one(struct obj *rator, struct obj *rand) {
   if (DEBUG_ONLY(rator->tag != OBJ_CLOSURE)) {
     RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator,
                   rator->tag);
   }
 
-  struct closure *closure = (struct closure *)rator;
+  struct closure_obj *closure = (struct closure_obj *)rator;
 
   if (DEBUG_ONLY(closure->size != CLOSURE_ONE)) {
     printf("Trying to call: %p\n", closure->fn_1);
@@ -44,14 +44,13 @@ void call_closure_one(struct object *rator, struct object *rand) {
   }
 }
 
-void call_closure_two(struct object *rator, struct object *rand,
-                      struct object *cont) {
+void call_closure_two(struct obj *rator, struct obj *rand, struct obj *cont) {
   if (DEBUG_ONLY(rator->tag != OBJ_CLOSURE)) {
     RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator,
                   rator->tag);
   }
 
-  struct closure *closure = (struct closure *)rator;
+  struct closure_obj *closure = (struct closure_obj *)rator;
 
   if (DEBUG_ONLY(closure->size != CLOSURE_TWO)) {
     RUNTIME_ERROR("Called a closure that takes one arg with two args");
@@ -69,15 +68,6 @@ void call_closure_two(struct object *rator, struct object *rand,
     memcpy(thnk_heap, &thnk, sizeof(struct thunk));
     run_minor_gc(thnk_heap);
   }
-}
-
-struct void_obj halt_func(struct object *inp) {
-  (void)inp; // mmh
-  printf("Halt");
-  exit(0);
-
-  // unreachable
-  return object_void_obj_new();
 }
 
 static size_t get_stack_limit(void) {
@@ -109,13 +99,7 @@ static bool stack_check(void) {
   return stack_ptr_val > stack_end_val;
 }
 
-struct void_obj *global_void_obj;
-
 void scheme_start(struct thunk *initial_thunk) {
-  struct void_obj v_obj = object_void_obj_new();
-  global_void_obj = &v_obj;
-  printf("global_void_obj = %p\n", (void *)global_void_obj);
-
   stack_initial = stack_ptr();
   current_thunk = initial_thunk;
 
@@ -129,16 +113,16 @@ void scheme_start(struct thunk *initial_thunk) {
   DEBUG_FPRINTF(stderr, "bouncing\n");
 
   if (current_thunk->closr->size == CLOSURE_ONE) {
-    struct closure *closr = current_thunk->closr;
-    struct object *rand = current_thunk->one.rand;
-    struct env_table *env = current_thunk->closr->env;
+    struct closure_obj *closr = current_thunk->closr;
+    struct obj *rand = current_thunk->one.rand;
+    struct obj_env *env = current_thunk->closr->env;
     free(current_thunk);
     closr->fn_1(rand, env);
   } else {
-    struct closure *closr = current_thunk->closr;
-    struct object *rand = current_thunk->two.rand;
-    struct object *cont = current_thunk->two.cont;
-    struct env_table *env = current_thunk->closr->env;
+    struct closure_obj *closr = current_thunk->closr;
+    struct obj *rand = current_thunk->two.rand;
+    struct obj *cont = current_thunk->two.cont;
+    struct obj_env *env = current_thunk->closr->env;
     free(current_thunk);
     closr->fn_2(rand, cont, env);
   }
@@ -157,8 +141,8 @@ void run_minor_gc(struct thunk *thnk) {
   longjmp(setjmp_env_buf, 1);
 }
 
-struct object object_base_new(enum object_tag tag) {
-  return (struct object){
+struct obj object_base_new(enum object_tag tag) {
+  return (struct obj){
       .tag = tag,
       .mark = WHITE,
       .on_stack = true,
@@ -168,63 +152,25 @@ struct object object_base_new(enum object_tag tag) {
   };
 }
 
-struct closure object_closure_one_new(size_t env_id,
-                                      void (*const fn)(struct object *,
-                                                       struct env_table *),
-                                      struct env_table *env) {
-  return (struct closure){.base = object_base_new(OBJ_CLOSURE),
-                          .size = CLOSURE_ONE,
-                          .env_id = env_id,
-                          .fn_1 = fn,
-                          .env = env};
+struct closure_obj object_closure_one_new(void (*const fn)(struct obj *,
+                                                           struct obj_env *),
+                                          struct obj_env *env) {
+  return (struct closure_obj){.base = object_base_new(OBJ_CLOSURE),
+                              .size = CLOSURE_ONE,
+                              .fn_1 = fn,
+                              .env = env};
 }
 
-struct closure object_closure_two_new(size_t env_id,
-                                      void (*const fn)(struct object *,
-                                                       struct object *,
-                                                       struct env_table *),
-                                      struct env_table *env) {
-  return (struct closure){.base = object_base_new(OBJ_CLOSURE),
-                          .size = CLOSURE_TWO,
-                          .env_id = env_id,
-                          .fn_2 = fn,
-                          .env = env};
+struct closure_obj object_closure_two_new(void (*const fn)(struct obj *,
+                                                           struct obj *,
+                                                           struct obj_env *),
+                                          struct obj_env *env) {
+  return (struct closure_obj){.base = object_base_new(OBJ_CLOSURE),
+                              .size = CLOSURE_TWO,
+                              .fn_2 = fn,
+                              .env = env};
 }
 
 struct int_obj object_int_obj_new(int64_t val) {
   return (struct int_obj){.base = object_base_new(OBJ_INT), .val = val};
-}
-
-struct void_obj object_void_obj_new(void) {
-  return (struct void_obj){.base = object_base_new(OBJ_VOID)};
-}
-
-struct object *env_get(size_t ident_id, struct env_table *env) {
-  DEBUG_LOG("looking for %ld in env: %p\n", ident_id, env);
-
-  if (env->vals[ident_id] != NULL) {
-    struct object *val = env->vals[ident_id];
-
-    DEBUG_FPRINTF(stderr, "getting %p tag: %d, id: %ld from env %p\n",
-                  (void *)val, val->tag, ident_id, (void *)env);
-
-    if (DEBUG_ONLY(val->tag > OBJ_STR)) {
-      RUNTIME_ERROR(
-          "Invalid object tag in env: %p tag: %d, id: %ld from env %p\n",
-          (void *)val, val->tag, ident_id, (void *)env);
-    }
-
-    return val;
-  }
-
-  RUNTIME_ERROR("Value not present in env: %ld");
-}
-
-struct object *env_set(size_t ident_id, struct env_table *env,
-                       struct object *obj) {
-  struct object *prev = env->vals[ident_id];
-
-  env->vals[ident_id] = obj;
-
-  return prev;
 }

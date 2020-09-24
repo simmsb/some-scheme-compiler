@@ -30,6 +30,13 @@
     (S) = buf;                                                                 \
   } while (0)
 
+#define SWAP(A, B)                                                             \
+  do {                                                                         \
+    typeof(A) temp = (A);                                                      \
+    (A) = (B);                                                                 \
+    (B) = temp;                                                                \
+  } while (0)
+
 #ifndef NDEBUG
 #define DEBUG_FPRINTF(...) fprintf(__VA_ARGS__)
 #else

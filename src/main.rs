@@ -11,6 +11,10 @@ pub mod literals;
 pub mod parse;
 pub mod utils;
 
+use cdsl::CDecl;
+use cdsl::CExpr;
+use cdsl::CStmt;
+use cdsl::CType;
 use cdsl::ToC;
 use failure::{format_err, Error};
 use include_dir::{include_dir, Dir};
@@ -198,11 +202,7 @@ fn generate_program_source(src: &str) -> String {
         src,
         r#"
 int main() {
-  struct env_table *base_env = alloca(ENV_TABLE_SIZE);
-  memset(base_env, 0, ENV_TABLE_SIZE);
-  base_env->base = object_base_new(OBJ_ENV);
-
-  struct closure initial_closure = object_closure_one_new(0, main_lambda, base_env);
+  struct closure_obj initial_closure = object_closure_one_new(main_lambda, NULL);
   struct thunk initial_thunk = {
     .closr = &initial_closure,
     .one = {NULL},
@@ -237,7 +237,7 @@ fn do_codegen(
         }
     }
 
-    let (root_stmts, protos, decls) = codegen::do_codegen(expr, &lambdas);
+    let (mut root_stmts, protos, decls) = codegen::do_codegen(expr, &lambdas);
 
     for proto in &protos {
         writeln!(&mut output_buffer, "{}", proto.export())?;
@@ -247,44 +247,21 @@ fn do_codegen(
         writeln!(&mut output_buffer, "{}", decl.export())?;
     }
 
-    for root_stmt in root_stmts {
-        writeln!(&mut output_buffer, "{}", root_stmt.export())?;
-    }
+    root_stmts.push(Rc::new(CStmt::Expr(CExpr::MacroCall {
+        name: "__builtin_unreachable".into(),
+        args: vec![],
+    })));
+
+    let main_lambda = CDecl::Fun {
+        name: "main_lambda".into(),
+        typ: CType::Void,
+        args: vec![("input_obj".into(), CType::Ptr(Rc::new(CType::Struct("obj".into())))),
+                   ("input_env".into(), CType::Ptr(Rc::new(CType::Struct("obj_env".into()))))
+        ],
+        body: root_stmts,
+    };
+
+    writeln!(&mut output_buffer, "{}", main_lambda.export())?;
 
     Ok(output_buffer)
-
-    // let mut supporting_stmts = Vec::new();
-    // let mut codegen_ctx = codegen::CodegenCtx::default();
-
-    // let compiled_root = codegen::codegen(&root, &mut codegen_ctx, &mut supporting_stmts);
-    // let compiled_root = cdsl::CStmt::Expr(compiled_root);
-
-    // supporting_stmts.push(compiled_root);
-
-    // let main_fn = cdsl::CDecl::Fun {
-    //     name: Cow::from("main_lambda"),
-    //     typ: cdsl::CType::Static(box cdsl::CType::Void),
-    //     args: vec![
-    //         (
-    //             Cow::from("_"),
-    //             CType::Ptr(box CType::Struct(Cow::from("object"))),
-    //         ),
-    //         (
-    //             Cow::from("env"),
-    //             CType::Ptr(box CType::Struct(Cow::from("env_table"))),
-    //         ),
-    //     ],
-    //     body: supporting_stmts,
-    // };
-
-    // writeln!(&mut output_buffer, "{}", main_fn.export())?;
-
-    // let envs = ctx.lam_map.clone();
-    // let generated_env_ids = codegen::gen_env_ids(&mut ctx, &envs);
-
-    // for decl in &generated_env_ids {
-    //     writeln!(&mut output_buffer, "{}", decl.export())?;
-    // }
-
-    // Ok(output_buffer)
 }

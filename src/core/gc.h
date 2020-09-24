@@ -3,16 +3,17 @@
 
 #include "base.h"
 #include "queue.h"
-#include "tree.h"
+#include "hash_table.h"
 #include "vec.h"
 
-DEFINE_VECTOR(size_t, size_t)
-DEFINE_VECTOR(struct object *, gc_heap_nodes)
-DEFINE_QUEUE(struct object *, gc_grey_nodes)
+DEFINE_VECTOR(size_t, size_t);
+DEFINE_VECTOR(struct obj *, gc_heap_nodes);
+DEFINE_QUEUE(struct obj *, gc_grey_nodes);
+DEFINE_HASH(struct obj *, ptr_map);
 
 struct ptr_toupdate_pair {
-  struct object **toupdate;
-  struct object *on_stack;
+  struct obj **toupdate;
+  struct obj *on_stack;
 };
 
 DEFINE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair)
@@ -28,7 +29,7 @@ struct gc_context {
 
   // pointers that have been updated to the heap
   // pair is (stack_pointer, heap_pointer)
-  struct ptr_bst updated_pointers;
+  struct hash_table_ptr_map *updated_pointers;
 };
 
 struct gc_funcs {
@@ -36,16 +37,16 @@ struct gc_funcs {
   // anything it points to to point to the heap
   // if the object is on the heap already this returns the same
   // pointer that was put in
-  struct object *(*const toheap)(struct object *, struct gc_context *);
+  struct obj *(*const toheap)(struct obj *, struct gc_context *);
 
   // Marks an object and any child pointers
   // Stack objects are copied to the heap and the context updated
-  void (*const mark)(struct object *, struct gc_context *);
+  void (*const mark)(struct obj *, struct gc_context *);
 
   // Frees an object
   // Acts as the cleanup routine, the gc will decide whether to call free on
   // the object if it is on the stack or not
-  void (*const free)(struct object *);
+  void (*const free)(struct obj *);
 };
 
 struct gc_data {
@@ -54,27 +55,29 @@ struct gc_data {
 
 void gc_init(void);
 
-void gc_free_noop(struct object *);
-void gc_mark_noop(struct object *, struct gc_context *);
+void gc_free_noop(struct obj *);
+void gc_mark_noop(struct obj *, struct gc_context *);
 
-struct object *toheap_closure(struct object *, struct gc_context *);
-void mark_closure(struct object *, struct gc_context *);
+struct obj *toheap_closure(struct obj *, struct gc_context *);
+void mark_closure(struct obj *, struct gc_context *);
 
-struct object *toheap_env(struct object *, struct gc_context *);
-void mark_env(struct object *, struct gc_context *);
-void free_env(struct object *);
 
-struct object *toheap_int_obj(struct object *, struct gc_context *);
+struct obj *toheap_env(struct obj *, struct gc_context *);
+void mark_env(struct obj *, struct gc_context *);
+void free_env(struct obj *);
 
-struct object *toheap_void_obj(struct object *, struct gc_context *);
+struct obj *toheap_int_obj(struct obj *, struct gc_context *);
 
-struct object *toheap_string_obj(struct object *, struct gc_context *);
+struct obj *toheap_string_obj(struct obj *, struct gc_context *);
 
 struct gc_context gc_make_context(void);
+
 void gc_free_context(struct gc_context *);
 void gc_minor(struct gc_context *, struct thunk *);
 void gc_major(struct gc_context *, struct thunk *);
-struct object *gc_toheap(struct gc_context *, struct object *);
+
+struct obj *gc_toheap(struct gc_context *, struct obj *);
+void gc_mark_obj(struct gc_context *, struct obj *);
 
 void gc_heap_maintain(void);
 void *gc_malloc(size_t);

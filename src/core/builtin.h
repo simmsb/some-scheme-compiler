@@ -3,94 +3,71 @@
 
 #include "base.h"
 
-#define DEFINE_BUILTIN_VAR(NAME) extern const size_t NAME
-#define DEFINE_BUILTIN_ENV(NAME) extern const size_t NAME
+#define DEFINE_ZERO_ARG_FROM_BUILTIN(NAME)                                     \
+  void NAME##_k(struct obj *, struct obj_env *) __attribute__((noreturn))
+
+#define MAKE_ZERO_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                          \
+  void NAME##_k(struct obj *k, struct obj_env *env) {                          \
+    TYPE result = (INNER)();                                                   \
+                                                                               \
+    call_closure_one(k, (struct obj *)&result);                                \
+                                                                               \
+    __builtin_unreachable();                                                   \
+  }
 
 #define DEFINE_ONE_ARG_FROM_BUILTIN(NAME)                                      \
-  void NAME##_func(struct object *, struct object *, struct env_table *)
+  void NAME##_k(struct obj *, struct obj *, struct obj_env *)
 
-#define MAKE_ONE_ARG_FROM_BUILTIN(NAME, TYPE, ARG, ENV)                        \
-  void NAME##_func(struct object *rand, struct object *cont,                   \
-                   struct env_table *env) {                                    \
-    ADD_ENV(NAME##_env, ARG, rand, &env);                                      \
+#define MAKE_ONE_ARG_FROM_BUILTIN(NAME, TYPE)                                  \
+  void NAME##_k(struct obj *v, struct obj *k, struct obj_env *env) {           \
+    TYPE result = (NAME)(v);                                                   \
                                                                                \
-    struct object *lhs = env_get(ARG, env);                                    \
+    call_closure_one(k, (struct obj *)&result);                                \
                                                                                \
-    TYPE result = (NAME)(lhs);                                                 \
-                                                                               \
-    call_closure_one(cont, (struct object *)&result);                          \
+    __builtin_unreachable();                                                   \
   }
 
 #define DEFINE_TWO_ARG_FROM_BUILTIN(NAME)                                      \
-  void NAME##_func(struct object *, struct object *, struct env_table *);      \
-  void NAME##_func_2(struct object *, struct object *, struct env_table *)
+  void NAME##_k(struct obj *, struct obj *, struct obj_env *)                  \
+      __attribute__((noreturn));                                               \
+  void NAME##_k_2(struct obj *, struct obj *, struct obj_env *)                \
+      __attribute__((noreturn))
 
-#define DEFINE_UNOP(NAME)                                                      \
-  DEFINE_BUILTIN_VAR(NAME##_param);                                            \
-  DEFINE_BUILTIN_ENV(NAME##_env);                                              \
-  DEFINE_ONE_ARG_FROM_BUILTIN(NAME)
+struct unary_env {
+  struct obj *val;
+};
 
-#define MAKE_CONSTRUCTOR_BUILTIN(NAME, TYPE)                                   \
-  void NAME##_ctor(TYPE inp, struct object *cont, struct env_table *env) {     \
-    TYPE result = (NAME)(inp);                                                 \
+#define MAKE_TWO_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                           \
+  void NAME##_k(struct obj *v, struct obj *k, struct obj_env *env) {           \
+    OBJECT_ENV_OBJ_NEW(tmp_env, 2, struct unary_env);                          \
+    tmp_env->env[0] = v;                                                       \
+    struct closure_obj func_2_clos =                                           \
+        object_closure_two_new(NAME##_k_2, tmp_env);                           \
                                                                                \
-    call_closure_one(cont, (struct object *)&result);                          \
-  }
-
-#define MAKE_TWO_ARG_FROM_BUILTIN(NAME, TYPE, LHS_ARG, RHS_ARG, LHS_ENV,       \
-                                  RHS_ENV)                                     \
-  void NAME##_func(struct object *rand, struct object *cont,                   \
-                   struct env_table *env) {                                    \
-    ADD_ENV(NAME##_env, LHS_ARG, rand, &env);                                  \
+    call_closure_one(k, (struct obj *)&func_2_clos);                           \
                                                                                \
-    struct closure func_2_clos =                                               \
-        object_closure_two_new(LHS_ENV, NAME##_func_2, env);                   \
-                                                                               \
-    call_closure_one(cont, (struct object *)&func_2_clos);                     \
+    __builtin_unreachable();                                                   \
   }                                                                            \
-  void NAME##_func_2(struct object *rand, struct object *cont,                 \
-                     struct env_table *env) {                                  \
-    ADD_ENV(NAME##_env_2, RHS_ARG, rand, &env);                                \
+  void NAME##_k_2(struct obj *v, struct obj *k, struct obj_env *env) {         \
                                                                                \
-    struct object *lhs = env_get(LHS_ARG, env);                                \
+    TYPE result = (INNER)(env->env[0], v);                                     \
                                                                                \
-    TYPE result = (NAME)(lhs, rand);                                           \
+    call_closure_one(k, (struct obj *)&result);                             \
                                                                                \
-    call_closure_one(cont, (struct object *)&result);                          \
+    __builtin_unreachable();                                                   \
   }
-
-#define DEFINE_BINOP(NAME)                                                     \
-  DEFINE_BUILTIN_VAR(NAME##_param);                                            \
-  DEFINE_BUILTIN_VAR(NAME##_param_2);                                          \
-  DEFINE_BUILTIN_ENV(NAME##_env);                                              \
-  DEFINE_BUILTIN_ENV(NAME##_env_2);                                            \
-  DEFINE_TWO_ARG_FROM_BUILTIN(NAME)
 
 // builtin operations
+DEFINE_TWO_ARG_FROM_BUILTIN(add);
+DEFINE_TWO_ARG_FROM_BUILTIN(sub);
+DEFINE_TWO_ARG_FROM_BUILTIN(mul);
+DEFINE_TWO_ARG_FROM_BUILTIN(div);
 
-struct int_obj object_int_obj_add(struct object *, struct object *);
+DEFINE_ZERO_ARG_FROM_BUILTIN(exit);
 
-struct int_obj object_int_obj_sub(struct object *, struct object *);
-
-struct int_obj object_int_obj_mul(struct object *, struct object *);
-
-struct int_obj object_int_obj_div(struct object *, struct object *);
-
-DEFINE_BINOP(object_int_obj_add);
-DEFINE_BINOP(object_int_obj_sub);
-DEFINE_BINOP(object_int_obj_mul);
-DEFINE_BINOP(object_int_obj_div);
-
-DEFINE_BUILTIN_VAR(halt_func_param);
-DEFINE_BUILTIN_ENV(halt_func_env);
-void halt_func_func(struct object *, struct env_table *);
-
-DEFINE_BUILTIN_VAR(to_string_func_param);
-DEFINE_BUILTIN_ENV(to_string_func_env);
-void to_string_func_func(struct object *, struct object *, struct env_table *);
-
-DEFINE_BUILTIN_VAR(println_func_param);
-DEFINE_BUILTIN_ENV(println_func_env);
-void println_func_func(struct object *, struct object *, struct env_table *);
+void to_string_k(struct obj *, struct obj *, struct obj_env *)
+    __attribute__((noreturn));
+void println_k(struct obj *, struct obj *, struct obj_env *)
+    __attribute__((noreturn));
 
 #endif // SOMESCHEME_BUILTIN_H

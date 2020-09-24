@@ -72,7 +72,6 @@ pub fn parse_str(input: &str) -> nom::IResult<&str, BExpr> {
     )
 }
 
-#[allow(clippy::cyclomatic_complexity)]
 fn parse_lam(input: &str) -> nom::IResult<&str, BExpr> {
     let (i, _) = pair!(input, char!('('), ws!(tag!("lambda")))?;
     let (i, plist) = delimited!(i, char!('('), many0!(ws!(parse_ident)), char!(')'))?;

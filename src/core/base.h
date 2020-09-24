@@ -7,41 +7,10 @@
 #include "common.h"
 #include "vec.h"
 
-#define ADD_ENV(ENV_ID, IDENT_ID, VAL, HEAD_PTR)                               \
-  do {                                                                         \
-                                                                               \
-    if (DEBUG_ONLY((VAL)->tag > OBJ_STR)) {                                    \
-      RUNTIME_ERROR(                                                           \
-          "Invalid object tag in env: tag: %d, id: %ld from env %p\n",         \
-          (VAL)->tag, (IDENT_ID), (void *)*(HEAD_PTR));                        \
-    }                                                                          \
-    struct env_table *new_env = alloca(ENV_TABLE_SIZE);                        \
-    memset(new_env, 0, ENV_TABLE_SIZE);                                        \
-    new_env->base = object_base_new(OBJ_ENV);                                  \
-    struct env_table_id_map id_map = global_env_table[ENV_ID];                 \
-                                                                               \
-    for (size_t i = 0; i < id_map.num_ids; i++) {                              \
-      size_t idx = id_map.var_ids[i];                                          \
-      new_env->vals[idx] = (*(HEAD_PTR))->vals[idx];                           \
-    }                                                                          \
-                                                                               \
-    new_env->vals[IDENT_ID] = VAL;                                             \
-                                                                               \
-    TOUCH_OBJECT(VAL, "add_env");                                              \
-    DEBUG_FPRINTF(stderr, "adding tag: %d, id: %ld to env %p\n", (VAL)->tag,   \
-                  (IDENT_ID), (void *)*(HEAD_PTR));                            \
-                                                                               \
-    (*HEAD_PTR) = new_env;                                                     \
-  } while (0)
-
 #define NUM_ARGS(...) (sizeof((size_t[]){__VA_ARGS__}) / sizeof(size_t))
-#define ENV_ENTRY(ID, ...)                                                     \
-  [ID] = (struct env_table_id_map) {                                           \
-    ID, NUM_ARGS(__VA_ARGS__), (size_t[]) { __VA_ARGS__ }                      \
-  }
 
-#define OBJECT_STRING_OBJ_NEW(S, NAME)                                         \
-  struct object *(NAME);                                                       \
+#define OBJECT_STRING_OBJ_NEW(NAME, S)                                         \
+  struct obj *(NAME);                                                          \
   do {                                                                         \
     size_t len = strlen(S) + 1;                                                \
     /* we keep the null byte */                                                \
@@ -50,24 +19,51 @@
     new_obj->len = len;                                                        \
     memcpy((char *)&new_obj->buf, (S), len);                                   \
     TOUCH_OBJECT(new_obj, "string_obj_new");                                   \
-    (NAME) = (struct object *)new_obj;                                         \
+    (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
 
-#define OBJECT_INT_OBJ_NEW(n, NAME)                                            \
-  struct object *(NAME);                                                       \
+#define OBJECT_INT_OBJ_NEW(NAME, n)                                            \
+  struct obj *(NAME);                                                          \
   do {                                                                         \
     struct int_obj *new_obj = alloca(sizeof(struct int_obj));                  \
     *new_obj = object_int_obj_new((n));                                        \
     TOUCH_OBJECT(new_obj, "int_obj_new");                                      \
-    (NAME) = (struct object *)new_obj;                                         \
+    (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
 
-#define OBJECT_VOID_OBJ_NEW(NAME)                                              \
-  struct object *(NAME);                                                       \
+#define ENV_STRUCT(T)                                                          \
+  struct {                                                                     \
+    struct obj base;                                                           \
+    size_t len;                                                                \
+    T env;                                                                     \
+  }
+
+#define OBJECT_ENV_OBJ_NEW(NAME, SIZE, S)                                      \
+  struct obj_env *(NAME);                                                      \
   do {                                                                         \
-    struct void_obj *new_obj = global_void_obj;                                \
-    TOUCH_OBJECT(new_obj, "void_obj_init");                                    \
-    (NAME) = (struct object *)new_obj;                                         \
+    ENV_STRUCT(S) *new_env = alloca(sizeof(ENV_STRUCT(S)));                    \
+    new_env->base = object_base_new(OBJ_ENV), new_env->len = (SIZE);           \
+    (NAME) = (struct obj_env *)new_env;                                        \
+  } while (0)
+
+#define OBJECT_CLOSURE_ONE_NEW(NAME, FN, ENV)                                  \
+  struct obj *(NAME);                                                          \
+  do {                                                                         \
+    struct closure_obj *new_obj = alloca(sizeof(struct closure_obj));          \
+    struct closure_obj tmp_obj = object_closure_one_new((FN), (ENV));          \
+    memcpy(new_obj, &tmp_obj, sizeof(struct closure_obj));                     \
+    TOUCH_OBJECT(new_obj, "closure_one_new");                                  \
+    (NAME) = (struct obj *)new_obj;                                            \
+  } while (0)
+
+#define OBJECT_CLOSURE_TWO_NEW(NAME, FN, ENV)                                  \
+  struct obj *(NAME);                                                          \
+  do {                                                                         \
+    struct closure_obj *new_obj = alloca(sizeof(struct closure_obj));          \
+    struct closure_obj tmp_obj = object_closure_two_new((FN), (ENV));          \
+    memcpy(new_obj, &tmp_obj, sizeof(struct closure_obj));                     \
+    TOUCH_OBJECT(new_obj, "closure_two_new");                                  \
+    (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
 
 #ifndef NDEBUG
@@ -75,10 +71,9 @@
   do {                                                                         \
     fprintf(stderr,                                                            \
             "touching object %p tag: %d, last touched by %s: (%s:%d:%s)\n",    \
-            (void *)(OBJ), ((struct object *)(OBJ))->tag,                      \
-            ((struct object *)(OBJ))->last_touched_by, __func__, __LINE__,     \
-            (S));                                                              \
-    ALLOC_SPRINTF(((struct object *)(OBJ))->last_touched_by, "(%s:%d:%s)",     \
+            (void *)(OBJ), ((struct obj *)(OBJ))->tag,                         \
+            ((struct obj *)(OBJ))->last_touched_by, __func__, __LINE__, (S));  \
+    ALLOC_SPRINTF(((struct obj *)(OBJ))->last_touched_by, "(%s:%d:%s)",        \
                   __func__, __LINE__, (S));                                    \
   } while (0)
 #else
@@ -96,13 +91,12 @@ enum __attribute__((__packed__)) object_tag {
   OBJ_CLOSURE = 1,
   OBJ_ENV,
   OBJ_INT,
-  OBJ_VOID,
   OBJ_STR,
 };
 
 enum __attribute__((__packed__)) gc_mark_type { WHITE = 0, GREY, BLACK };
 
-struct object {
+struct obj {
   enum object_tag tag;
   enum gc_mark_type mark;
   bool on_stack;
@@ -113,88 +107,59 @@ struct object {
 
 // builtin objects
 
-struct env_table {
-  struct object base;
-  struct object *vals[/* env_table_map_size */];
+struct obj_env {
+  struct obj base;
+  size_t len;
+  struct obj *env[];
 };
 
-extern const size_t env_table_map_size;
-#define ENV_TABLE_SIZE                                                         \
-  (sizeof(struct env_table) + sizeof(struct object *) * env_table_map_size)
-
-struct closure {
-  struct object base;
+struct closure_obj {
+  struct obj base;
   const enum closure_size size;
-  const size_t env_id;
   union {
-    void (*const fn_1)(struct object *, struct env_table *);
-    void (*const fn_2)(struct object *, struct object *, struct env_table *);
+    void (*const fn_1)(struct obj *, struct obj_env *);
+    void (*const fn_2)(struct obj *, struct obj *, struct obj_env *);
   };
-  struct env_table *env;
+  struct obj_env *env;
 };
 
 struct int_obj {
-  struct object base;
+  struct obj base;
   int64_t val;
 };
 
-struct void_obj {
-  struct object base;
-};
-
-extern struct void_obj *global_void_obj;
-
 struct string_obj {
-  struct object base;
+  struct obj base;
   size_t len;
   const char buf[];
 };
 
-struct env_table_id_map {
-  const size_t env_id;
-  const size_t num_ids;
-  size_t *const var_ids;
-};
-
-// get an object from the environment
-struct object *env_get(size_t, struct env_table *);
-
-// set an existing value in the environment, returning the previous value
-struct object *env_set(size_t, struct env_table *, struct object *);
-
-// The map of env ids to an array of var ids
-extern struct env_table_id_map const global_env_table[];
-extern const size_t global_env_table_size;
-
 struct thunk {
-  struct closure *closr;
+  struct closure_obj *closr;
   union {
     struct {
-      struct object *rand;
+      struct obj *rand;
     } one;
     struct {
-      struct object *rand;
-      struct object *cont;
+      struct obj *rand;
+      struct obj *cont;
     } two;
   };
 };
 
-void call_closure_one(struct object *, struct object *);
-void call_closure_two(struct object *, struct object *, struct object *);
-struct void_obj halt_func(struct object *);
+void call_closure_one(struct obj *, struct obj *);
+void call_closure_two(struct obj *, struct obj *, struct obj *);
 void scheme_start(struct thunk *);
 void run_minor_gc(struct thunk *);
 
-struct object object_base_new(enum object_tag);
-struct closure object_closure_one_new(size_t,
-                                      void (*const)(struct object *,
-                                                    struct env_table *),
-                                      struct env_table *);
-struct closure object_closure_two_new(
-    size_t, void (*const)(struct object *, struct object *, struct env_table *),
-    struct env_table *);
+struct obj object_base_new(enum object_tag);
+struct closure_obj object_closure_one_new(void (*const)(struct obj *,
+                                                        struct obj_env *),
+                                          struct obj_env *);
+struct closure_obj object_closure_two_new(void (*const)(struct obj *,
+                                                        struct obj *,
+                                                        struct obj_env *),
+                                          struct obj_env *);
 struct int_obj object_int_obj_new(int64_t);
-struct void_obj object_void_obj_new(void);
-struct string_obj object_string_obj_new(const char *);
 
 #endif /* SOMESCHEME_H */

@@ -61,7 +61,7 @@ fn name_for_free_var(var: &FreeVar<String>) -> String {
 }
 
 fn object_type() -> CType<'static> {
-    CType::Ptr(Rc::new(CType::Struct("object".into())))
+    CType::Ptr(Rc::new(CType::Struct("obj".into())))
 }
 
 impl LiftedLambda {
@@ -99,11 +99,7 @@ impl LiftedLambda {
 
         supporting_stmts.push(Rc::new(self.construct_env_code(&var_name)));
 
-        let env_expr = Rc::new(CExpr::PreUnOp {
-            op: "&".into(),
-            ex: Rc::new(CExpr::Ident(var_name.into())),
-        });
-
+        let env_expr = Rc::new(CExpr::Ident(var_name.into()));
         let env_access = Rc::new(self.generate_env_cast(env_expr.clone()));
 
         let mut vars_to_copy = self.freevars.clone();
@@ -155,10 +151,7 @@ impl LiftedLambda {
 
         supporting_stmts.push(Rc::new(init_stmt));
 
-        CExpr::PreUnOp {
-            op: "&".into(),
-            ex: Rc::new(CExpr::Ident(var_name.into())),
-        }
+        CExpr::Ident(var_name.into())
     }
 
     fn generate_env_cast(&self, in_expr: Rc<CExpr<'static>>) -> CExpr<'static> {
@@ -267,7 +260,7 @@ pub fn do_codegen(
     let mut stmts = Vec::new();
 
     for lambda in lambdas.values() {
-        ctx.add_decl(lambda.env_struct());
+        ctx.add_proto(lambda.env_struct());
         lambda.generate_func(&mut ctx);
     }
 
@@ -275,6 +268,46 @@ pub fn do_codegen(
     stmts.push(Rc::new(CStmt::Expr(final_expr)));
 
     (stmts, ctx.protos, ctx.declarations)
+}
+
+fn builtin_ident_codegen(
+    ident: &str,
+    ctx: &mut CodegenCtx,
+    supporting_stmts: &mut Vec<Rc<CStmt<'static>>>,
+) -> CExpr<'static> {
+    let (num_params, runtime_name) = match ident {
+        "to_string" => (2, "to_string_k"),
+        "println" => (2, "println_k"),
+        "exit" => (1, "exit_k"),
+        "+" => (2, "add_k"),
+        "-" => (2, "sub_k"),
+        "*" => (2, "mul_k"),
+        "/" => (2, "div_k"),
+        _ => panic!("unknown builtin: {}", ident),
+    };
+
+
+    let init_name = match num_params {
+        1 => "OBJECT_CLOSURE_ONE_NEW",
+        2 => "OBJECT_CLOSURE_TWO_NEW",
+        n => panic!("closure was not one or two parameters, was: {}", n),
+    };
+
+
+    let var_name = ctx.gen_var();
+
+    let init_stmt = CStmt::Expr(CExpr::MacroCall {
+        name: init_name.into(),
+        args: vec![
+            Rc::new(CExpr::Ident(var_name.to_owned().into())),
+            Rc::new(CExpr::Ident(runtime_name.into())),
+            Rc::new(CExpr::Ident("NULL".into())),
+        ],
+    });
+
+    supporting_stmts.push(Rc::new(init_stmt));
+
+    CExpr::Ident(var_name.into())
 }
 
 fn do_codegen_internal(
@@ -295,7 +328,7 @@ fn do_codegen_internal(
         }
         LExpr::Lit(Ignore(l)) => {
             let (ctor_name, expr) = match l {
-                Literal::String(s) => ("OBJECT_STR_OBJ_NEW", CExpr::LitStr(s.to_owned().into())),
+                Literal::String(s) => ("OBJECT_STRING_OBJ_NEW", CExpr::LitStr(s.to_owned().into())),
                 Literal::Int(i) => ("OBJECT_INT_OBJ_NEW", CExpr::LitIInt(*i as isize)),
                 Literal::Float(_f) => panic!("not yet"),
                 Literal::Void => return CExpr::Ident("NULL".into()),
@@ -312,22 +345,21 @@ fn do_codegen_internal(
 
             CExpr::Ident(dest.into())
         }
-        // TODO: construct a closure of the builtin
-        LExpr::BuiltinIdent(Ignore(i)) => CExpr::Ident(i.to_owned().into()),
+        LExpr::BuiltinIdent(Ignore(i)) => builtin_ident_codegen(i.as_ref(), ctx, supporting_stmts),
         LExpr::Lifted(Ignore(id)) => {
             let lambda = ctx.lambdas.get(id).unwrap();
             let env_expr = Rc::new(CExpr::Ident("env".into()));
             lambda.generate_closure(&env_expr, ctx, supporting_stmts)
         }
         LExpr::CallOne(c, a) => CExpr::MacroCall {
-            name: "CALL_CLOSURE_ONE".into(),
+            name: "call_closure_one".into(),
             args: vec![
                 Rc::new(do_codegen_internal(c, ctx, supporting_stmts)),
                 Rc::new(do_codegen_internal(a, ctx, supporting_stmts)),
             ],
         },
         LExpr::CallTwo(c, a, k) => CExpr::MacroCall {
-            name: "CALL_CLOSURE_TWO".into(),
+            name: "call_closure_two".into(),
             args: vec![
                 Rc::new(do_codegen_internal(c, ctx, supporting_stmts)),
                 Rc::new(do_codegen_internal(a, ctx, supporting_stmts)),
