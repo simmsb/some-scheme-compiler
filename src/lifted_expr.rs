@@ -15,6 +15,7 @@ pub enum LExpr {
     Var(Var<String>),
     Lit(Ignore<Literal>),
     BuiltinIdent(Ignore<String>),
+    SetThen(Var<String>, Rc<LExpr>, Rc<LExpr>),
     Lifted(Ignore<usize>),
     CallOne(Rc<LExpr>, Rc<LExpr>),
     CallTwo(Rc<LExpr>, Rc<LExpr>, Rc<LExpr>),
@@ -54,6 +55,26 @@ impl LExpr {
             LExpr::Var(s) => allocator.as_string(s),
             LExpr::Lit(Ignore(l)) => l.pretty(allocator),
             LExpr::BuiltinIdent(Ignore(s)) => allocator.as_string(s),
+            LExpr::SetThen(n, v, c) => {
+                let v_pret = v.pretty(allocator);
+                let c_pret = c.pretty(allocator);
+
+                allocator
+                    .text("set-then!")
+                    .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                    .append(allocator.space())
+                    .append(
+                        allocator
+                            .as_string(n)
+                            .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
+                    )
+                    .append(allocator.space())
+                    .append(v_pret)
+                    .append(allocator.space())
+                    .append(c_pret)
+                    .group()
+                    .parens()
+            }
             LExpr::Lifted(Ignore(l)) => allocator
                 .text("lifted-lambda@")
                 .append(allocator.as_string(l)),
@@ -65,6 +86,7 @@ impl LExpr {
                     .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone())
                     .append(allocator.space())
                     .append(c_pret)
+                    .group()
                     .parens()
             }
             LExpr::CallTwo(f, v, c) => {
@@ -78,6 +100,7 @@ impl LExpr {
                     .append(v_pret)
                     .append(allocator.space())
                     .append(c_pret)
+                    .group()
                     .parens()
             }
         }

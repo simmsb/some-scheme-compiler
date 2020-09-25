@@ -1,0 +1,5 @@
+((lambda (a)
+   (println a)
+   (set! a 2)
+   (println a)
+  ) 0)

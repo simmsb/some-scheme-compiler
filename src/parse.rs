@@ -72,6 +72,15 @@ pub fn parse_str(input: &str) -> nom::IResult<&str, BExpr> {
     )
 }
 
+fn parse_set(input: &str) -> nom::IResult<&str, BExpr> {
+    let (i, _) = pair!(input, char!('('), ws!(tag!("set!")))?;
+    let (i, n) = ws!(i, parse_ident)?;
+    let (i, e) = parse_exp(i)?;
+    let (i, _) = char!(i, ')')?;
+
+    Ok((i, BExpr::Set(n, Rc::new(e))))
+}
+
 fn parse_lam(input: &str) -> nom::IResult<&str, BExpr> {
     let (i, _) = pair!(input, char!('('), ws!(tag!("lambda")))?;
     let (i, plist) = delimited!(i, char!('('), many0!(ws!(parse_ident)), char!(')'))?;
@@ -97,6 +106,7 @@ pub fn parse_exp(input: &str) -> nom::IResult<&str, BExpr> {
             | complete!(parse_builtin)
             | complete!(parse_var)
             | complete!(parse_lam)
+            | complete!(parse_set)
             | complete!(parse_app)
     )
 }

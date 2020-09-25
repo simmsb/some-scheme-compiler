@@ -236,7 +236,7 @@ impl LiftedLambda {
                     attr: name_for_free_var(dest_var).into(),
                 }),
                 right: tmp_var,
-            })))
+            })));
         }
 
         let final_expr = do_codegen_internal(&self.body, ctx, &mut stmts);
@@ -360,6 +360,31 @@ fn do_codegen_internal(
             CExpr::Ident(dest.into())
         }
         LExpr::BuiltinIdent(Ignore(i)) => builtin_ident_codegen(i.as_ref(), ctx, supporting_stmts),
+        LExpr::SetThen(v, e, c) => {
+            let e_expr = do_codegen_internal(e, ctx, supporting_stmts);
+            let resolved_name = match v {
+                moniker::Var::Free(f) => name_for_free_var(f),
+                moniker::Var::Bound(_) => panic!("bound var: {:?}", v),
+            };
+            let var_exp = CExpr::Arrow {
+                expr: Rc::new(CExpr::Cast {
+                    typ: CType::Ptr(Rc::new(CType::Struct("cell_obj".into()))),
+                    ex: Rc::new(CExpr::Arrow {
+                        expr: Rc::new(CExpr::Ident("env".into())),
+                        attr: resolved_name.into(),
+                    }),
+                }),
+                attr: "val".into(),
+            };
+
+            supporting_stmts.push(Rc::new(CStmt::Expr(CExpr::BinOp {
+                op: "=".into(),
+                left: Rc::new(var_exp),
+                right: Rc::new(e_expr),
+            })));
+
+            do_codegen_internal(c, ctx, supporting_stmts)
+        }
         LExpr::Lifted(Ignore(id)) => {
             let lambda = ctx.lambdas.get(id).unwrap();
             let env_expr = Rc::new(CExpr::Ident("env".into()));

@@ -15,6 +15,7 @@ pub enum BExpr {
     Var(String),
     Lit(Literal),
     BuiltinIdent(String),
+    Set(String, Rc<BExpr>),
     Lam(Vec<String>, Vec<BExpr>),
     App(Rc<BExpr>, Vec<BExpr>),
 }
@@ -29,6 +30,23 @@ impl BExpr {
             BExpr::Var(s) => allocator.as_string(s),
             BExpr::Lit(l) => l.pretty(allocator),
             BExpr::BuiltinIdent(s) => allocator.as_string(s),
+            BExpr::Set(n, e) => {
+                let e_pret = e.pretty(allocator);
+
+                allocator
+                    .text("set!")
+                    .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                    .append(allocator.space())
+                    .append(
+                        allocator
+                            .text(n.to_owned())
+                            .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
+                    )
+                    .append(allocator.space())
+                    .append(e_pret)
+                    .group()
+                    .parens()
+            }
             BExpr::Lam(pat, body) => {
                 let pat_pret = allocator
                     .intersperse(
@@ -59,10 +77,8 @@ impl BExpr {
             }
             BExpr::App(f, params) => {
                 let f_pret = f.pretty(allocator);
-                let v_pret = allocator.intersperse(
-                    params.iter().map(|v| v.pretty(allocator)),
-                    allocator.line(),
-                );
+                let v_pret = allocator
+                    .intersperse(params.iter().map(|v| v.pretty(allocator)), allocator.line());
 
                 f_pret
                     .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone())
@@ -90,10 +106,20 @@ impl BExpr {
     fn into_expr_inner(self, env: &HashMap<String, FreeVar<String>>) -> Expr {
         match self {
             BExpr::Var(n) => Expr::Var(Var::Free(
-                env.get(&n).unwrap_or_else(|| panic!("unbound arg: {}", n)).clone(),
+                env.get(&n)
+                    .unwrap_or_else(|| panic!("unbound arg: {}", n))
+                    .clone(),
             )),
             BExpr::Lit(l) => Expr::Lit(Ignore(l)),
             BExpr::BuiltinIdent(l) => Expr::BuiltinIdent(Ignore(l)),
+            BExpr::Set(n, e) => Expr::Set(
+                Var::Free(
+                    env.get(&n)
+                        .unwrap_or_else(|| panic!("unbound arg: {}", n))
+                        .clone(),
+                ),
+                Rc::new(clone_rc(e).into_expr_inner(env)),
+            ),
             BExpr::Lam(params, body) => {
                 let mut env = env.clone();
                 env.extend(params.iter().map(|n| (n.clone(), FreeVar::fresh_named(n))));
@@ -129,7 +155,10 @@ impl BExpr {
                             Rc::new(body),
                         ));
                         rest.iter().rev().fold(last, |acc, p| {
-                            Expr::Lam(Scope::new(Binder(env.get(p).unwrap().clone()), Rc::new(acc)))
+                            Expr::Lam(Scope::new(
+                                Binder(env.get(p).unwrap().clone()),
+                                Rc::new(acc),
+                            ))
                         })
                     }
                 }
@@ -139,11 +168,9 @@ impl BExpr {
 
                 match params.as_slice() {
                     [] => Expr::App(Rc::new(expr), Rc::new(Expr::Lit(Ignore(Literal::Void)))),
-                    args => {
-                        args.iter().fold(expr, |acc, p| {
-                            Expr::App(Rc::new(acc), Rc::new(p.clone().into_expr_inner(env)))
-                        })
-                    }
+                    args => args.iter().fold(expr, |acc, p| {
+                        Expr::App(Rc::new(acc), Rc::new(p.clone().into_expr_inner(env)))
+                    }),
                 }
             }
         }

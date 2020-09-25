@@ -45,9 +45,7 @@ impl UExpr {
                     .parens();
                 let body_pret = allocator
                     .line_()
-                    .append(body.pretty(allocator))
-                    .nest(1)
-                    .group();
+                    .append(body.pretty(allocator));
 
                 allocator
                     .text("lambda")
@@ -56,6 +54,8 @@ impl UExpr {
                     .append(args_pret)
                     .append(allocator.space())
                     .append(body_pret)
+                    .nest(1)
+                    .group()
                     .parens()
             }
             UExpr::Var(s) => allocator.as_string(s),
@@ -109,9 +109,7 @@ impl KExpr {
                     .parens();
                 let body_pret = allocator
                     .line_()
-                    .append(body.pretty(allocator))
-                    .nest(1)
-                    .group();
+                    .append(body.pretty(allocator));
 
                 allocator
                     .text("lambda")
@@ -120,6 +118,8 @@ impl KExpr {
                     .append(pat_pret)
                     .append(allocator.space())
                     .append(body_pret)
+                    .nest(1)
+                    .group()
                     .parens()
             }
             KExpr::Var(s) => allocator.as_string(s),
@@ -143,6 +143,7 @@ impl KExpr {
 
 #[derive(Debug, Clone, BoundTerm)]
 pub enum CCall {
+    SetThen(Var<String>, Rc<UExpr>, Rc<CCall>),
     UCall(Rc<UExpr>, Rc<UExpr>, Rc<KExpr>),
     KCall(Rc<KExpr>, Rc<UExpr>),
 }
@@ -154,6 +155,27 @@ impl CCall {
         D::Doc: Clone,
     {
         match self {
+            CCall::SetThen(n, v, c) => {
+                let v_pret = v.pretty(allocator);
+                let c_pret = c.pretty(allocator);
+
+                allocator
+                    .text("set-then!")
+                    .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                    .append(allocator.space())
+                    .append(
+                        allocator
+                            .as_string(n)
+                            .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
+                    )
+                    .append(allocator.space())
+                    .append(v_pret)
+                    .append(allocator.space())
+                    .append(c_pret)
+                    .group()
+                    .parens()
+            }
+
             CCall::UCall(f, v, c) => {
                 let f_pret = f.pretty(allocator);
                 let v_pret = v.pretty(allocator);
@@ -165,6 +187,7 @@ impl CCall {
                     .append(v_pret)
                     .append(allocator.space())
                     .append(c_pret)
+                    .group()
                     .parens()
             }
 
@@ -176,6 +199,7 @@ impl CCall {
                     .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone())
                     .append(allocator.space())
                     .append(c_pret)
+                    .group()
                     .parens()
             }
         }
@@ -191,6 +215,11 @@ impl CCall {
 
     pub fn into_fexpr(self) -> FExpr {
         match self {
+            CCall::SetThen(n, v, c) => FExpr::SetThen(
+                n,
+                Rc::new(clone_rc(v).into_fexpr()),
+                Rc::new(clone_rc(c).into_fexpr()),
+            ),
             CCall::UCall(f, v, c) => FExpr::CallTwo(
                 Rc::new(clone_rc(f).into_fexpr()),
                 Rc::new(clone_rc(v).into_fexpr()),
@@ -207,6 +236,13 @@ impl CCall {
 fn t_k(expr: Expr, fk: &dyn Fn(Rc<UExpr>) -> CCall) -> CCall {
     match expr {
         Expr::Lam(_) | Expr::Var(_) | Expr::Lit(_) | Expr::BuiltinIdent(_) => fk(Rc::new(m(expr))),
+        Expr::Set(n, e) => t_k(clone_rc(e), &|e| {
+            CCall::SetThen(
+                n.clone(),
+                e,
+                Rc::new(fk(Rc::new(UExpr::Lit(Ignore(Literal::Void))))),
+            )
+        }),
         Expr::App(f, e) => {
             let rv_v = FreeVar::fresh_named("rv");
             let cont = Rc::new(KExpr::Lam(Scope::new(
@@ -215,7 +251,9 @@ fn t_k(expr: Expr, fk: &dyn Fn(Rc<UExpr>) -> CCall) -> CCall {
             )));
 
             t_k(clone_rc(f), &|f| {
-                t_k(clone_rc(e.clone()), &|e| CCall::UCall(f.clone(), e, cont.clone()))
+                t_k(clone_rc(e.clone()), &|e| {
+                    CCall::UCall(f.clone(), e, cont.clone())
+                })
             })
         }
     }
@@ -226,8 +264,20 @@ pub fn t_c(expr: Expr, c: Rc<KExpr>) -> CCall {
         e @ (Expr::Lam(_) | Expr::Var(_) | Expr::Lit(_) | Expr::BuiltinIdent(_)) => {
             CCall::KCall(c, Rc::new(m(e)))
         }
+        Expr::Set(n, e) => t_k(clone_rc(e), &|e| {
+            CCall::SetThen(
+                n.clone(),
+                e,
+                Rc::new(CCall::KCall(
+                    c.clone(),
+                    Rc::new(UExpr::Lit(Ignore(Literal::Void))),
+                )),
+            )
+        }),
         Expr::App(f, e) => t_k(clone_rc(f), &|f| {
-            t_k(clone_rc(e.clone()), &|e| CCall::UCall(f.clone(), e, c.clone()))
+            t_k(e.as_ref().clone(), &|e| {
+                CCall::UCall(f.clone(), e, c.clone())
+            })
         }),
     }
 }

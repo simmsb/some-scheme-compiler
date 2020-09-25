@@ -1,5 +1,5 @@
 use moniker::BoundTerm;
-use moniker::{Binder, Scope, Var, Ignore};
+use moniker::{Binder, Ignore, Scope, Var};
 
 use pretty::{BoxAllocator, DocAllocator, DocBuilder};
 use termcolor::{Color, ColorSpec, WriteColor};
@@ -15,6 +15,7 @@ pub enum Expr {
     Var(Var<String>),
     Lit(Ignore<Literal>),
     BuiltinIdent(Ignore<String>),
+    Set(Var<String>, Rc<Expr>),
     Lam(Scope<Binder<String>, Rc<Expr>>),
     App(Rc<Expr>, Rc<Expr>),
 }
@@ -29,21 +30,34 @@ impl Expr {
             Expr::Var(s) => allocator.as_string(s),
             Expr::Lit(Ignore(l)) => l.pretty(allocator),
             Expr::BuiltinIdent(Ignore(s)) => allocator.as_string(s),
+            Expr::Set(s, e) => {
+                let e_pret = e.pretty(allocator);
+
+                allocator
+                    .text("set!")
+                    .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                    .append(allocator.space())
+                    .append(
+                        allocator
+                            .as_string(s)
+                            .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
+                    )
+                    .append(allocator.space())
+                    .append(e_pret)
+                    .group()
+                    .parens()
+            }
             Expr::Lam(s) => {
                 let Scope {
                     unsafe_pattern: pat,
                     unsafe_body: body,
                 } = &s;
-               
+
                 let pat_pret = allocator
                     .as_string(pat)
                     .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone())
                     .parens();
-                let body_pret = allocator
-                    .line_()
-                    .append(body.pretty(allocator))
-                    .nest(1)
-                    .group();
+                let body_pret = allocator.line_().append(body.pretty(allocator));
 
                 allocator
                     .text("lambda")
@@ -52,6 +66,8 @@ impl Expr {
                     .append(pat_pret)
                     .append(allocator.space())
                     .append(body_pret)
+                    .nest(1)
+                    .group()
                     .parens()
             }
             Expr::App(f, v) => {
@@ -62,6 +78,7 @@ impl Expr {
                     .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone())
                     .append(allocator.space())
                     .append(v_pret)
+                    .group()
                     .parens()
             }
         }

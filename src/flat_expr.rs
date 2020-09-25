@@ -18,6 +18,7 @@ pub enum FExpr {
     Var(Var<String>),
     Lit(Ignore<Literal>),
     BuiltinIdent(Ignore<String>),
+    SetThen(Var<String>, Rc<FExpr>, Rc<FExpr>),
     CallOne(Rc<FExpr>, Rc<FExpr>),
     CallTwo(Rc<FExpr>, Rc<FExpr>, Rc<FExpr>),
 }
@@ -50,6 +51,26 @@ impl FExpr {
         D::Doc: Clone,
     {
         match self {
+            FExpr::SetThen(n, v, c) => {
+                let v_pret = v.pretty(allocator);
+                let c_pret = c.pretty(allocator);
+
+                allocator
+                    .text("set-then!")
+                    .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                    .append(allocator.space())
+                    .append(
+                        allocator
+                            .as_string(n)
+                            .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
+                    )
+                    .append(allocator.space())
+                    .append(v_pret)
+                    .append(allocator.space())
+                    .append(c_pret)
+                    .group()
+                    .parens()
+            }
             FExpr::LamOne(s) => {
                 let Scope {
                     unsafe_pattern: pat,
@@ -62,9 +83,7 @@ impl FExpr {
                     .parens();
                 let body_pret = allocator
                     .line_()
-                    .append(body.pretty(allocator))
-                    .nest(1)
-                    .group();
+                    .append(body.pretty(allocator));
 
                 allocator
                     .text("lambda")
@@ -73,6 +92,8 @@ impl FExpr {
                     .append(pat_pret)
                     .append(allocator.space())
                     .append(body_pret)
+                    .nest(1)
+                    .group()
                     .parens()
             }
             FExpr::LamTwo(s) => {
@@ -97,9 +118,7 @@ impl FExpr {
                     .parens();
                 let body_pret = allocator
                     .line_()
-                    .append(body.pretty(allocator))
-                    .nest(1)
-                    .group();
+                    .append(body.pretty(allocator));
 
                 allocator
                     .text("lambda")
@@ -108,6 +127,8 @@ impl FExpr {
                     .append(args_pret)
                     .append(allocator.space())
                     .append(body_pret)
+                    .nest(1)
+                    .group()
                     .parens()
             }
             FExpr::Var(s) => allocator.as_string(s),
@@ -121,6 +142,7 @@ impl FExpr {
                     .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone())
                     .append(allocator.space())
                     .append(c_pret)
+                    .group()
                     .parens()
             }
             FExpr::CallTwo(f, v, c) => {
@@ -134,6 +156,7 @@ impl FExpr {
                     .append(v_pret)
                     .append(allocator.space())
                     .append(c_pret)
+                    .group()
                     .parens()
             }
         }
@@ -186,6 +209,11 @@ impl FExpr {
             FExpr::Var(v) => LExpr::Var(v),
             FExpr::Lit(l) => LExpr::Lit(l),
             FExpr::BuiltinIdent(i) => LExpr::BuiltinIdent(i),
+            FExpr::SetThen(n, v, c) => {
+                let v = clone_rc(v).lift_lambdas_internal(ctx);
+                let c = clone_rc(c).lift_lambdas_internal(ctx);
+                LExpr::SetThen(n, Rc::new(v), Rc::new(c))
+            }
             FExpr::CallOne(f, p) => {
                 let f = clone_rc(f).lift_lambdas_internal(ctx);
                 let p = clone_rc(p).lift_lambdas_internal(ctx);
