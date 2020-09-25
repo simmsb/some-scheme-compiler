@@ -177,7 +177,7 @@ impl LiftedLambda {
             .map(|p| (p.clone(), ctx.gen_var()))
             .collect::<Vec<_>>();
 
-        let obj_env_s = Rc::new(CType::Struct("obj_env".into()));
+        let env_obj_s = Rc::new(CType::Struct("env_obj".into()));
         let obj_s = Rc::new(CType::Struct("obj".into()));
 
         let (mut with_names, mut types_only): (Vec<_>, Vec<_>) = params
@@ -190,8 +190,8 @@ impl LiftedLambda {
             })
             .unzip();
 
-        with_names.push(("env_in".into(), CType::Ptr(obj_env_s.clone())));
-        types_only.push(CType::Ptr(obj_env_s.clone()));
+        with_names.push(("env_in".into(), CType::Ptr(env_obj_s.clone())));
+        types_only.push(CType::Ptr(env_obj_s.clone()));
 
         let proto = CDecl::FunProto {
             name: format!("lambda_{}", self.id).into(),
@@ -218,13 +218,24 @@ impl LiftedLambda {
                 continue;
             }
 
+            let tmp_name = ctx.gen_var();
+            let tmp_var = Rc::new(CExpr::Ident(tmp_name.into()));
+
+            stmts.push(Rc::new(CStmt::Expr(CExpr::MacroCall {
+                name: "OBJECT_CELL_OBJ_NEW".into(),
+                args: vec![
+                    tmp_var.clone(),
+                    Rc::new(CExpr::Ident(in_var.to_owned().into())),
+                ],
+            })));
+
             stmts.push(Rc::new(CStmt::Expr(CExpr::BinOp {
                 op: "=".into(),
                 left: Rc::new(CExpr::Arrow {
                     expr: env_expr.clone(),
                     attr: name_for_free_var(dest_var).into(),
                 }),
-                right: Rc::new(CExpr::Ident(in_var.to_owned().into())),
+                right: tmp_var,
             })))
         }
 
@@ -285,13 +296,11 @@ fn builtin_ident_codegen(
         _ => panic!("unknown builtin: {}", ident),
     };
 
-
     let init_name = match num_params {
         1 => "OBJECT_CLOSURE_ONE_NEW",
         2 => "OBJECT_CLOSURE_TWO_NEW",
         n => panic!("closure was not one or two parameters, was: {}", n),
     };
-
 
     let var_name = ctx.gen_var();
 
@@ -321,8 +330,14 @@ fn do_codegen_internal(
                 moniker::Var::Bound(_) => panic!("bound var: {:?}", v),
             };
             CExpr::Arrow {
-                expr: Rc::new(CExpr::Ident("env".into())),
-                attr: resolved_name.into(),
+                expr: Rc::new(CExpr::Cast {
+                    typ: CType::Ptr(Rc::new(CType::Struct("cell_obj".into()))),
+                    ex: Rc::new(CExpr::Arrow {
+                        expr: Rc::new(CExpr::Ident("env".into())),
+                        attr: resolved_name.into(),
+                    }),
+                }),
+                attr: "val".into(),
             }
         }
         LExpr::Lit(Ignore(l)) => {

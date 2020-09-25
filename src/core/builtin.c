@@ -1,5 +1,5 @@
-#include "base.h"
 #include "builtin.h"
+#include "base.h"
 #include "common.h"
 
 struct int_obj object_int_obj_add(struct obj *lhs, struct obj *rhs) {
@@ -55,9 +55,7 @@ MAKE_TWO_ARG_FROM_BUILTIN(sub, object_int_obj_sub, struct int_obj);
 MAKE_TWO_ARG_FROM_BUILTIN(mul, object_int_obj_mul, struct int_obj);
 MAKE_TWO_ARG_FROM_BUILTIN(div, object_int_obj_div, struct int_obj);
 
-int exit_inner() {
-  exit(0);
-}
+int exit_inner() { exit(0); }
 
 MAKE_ZERO_ARG_FROM_BUILTIN(exit, exit_inner, int);
 
@@ -78,6 +76,8 @@ char *obj_to_string_internal(struct obj *val) {
   case OBJ_STR:
     ALLOC_SPRINTF(res, "%s", ((struct string_obj *)val)->buf);
     break;
+  case OBJ_CELL:
+    return obj_to_string_internal(((struct cell_obj *)val)->val);
   default:
     RUNTIME_ERROR("Unexpected object tag: %d", val->tag);
   }
@@ -85,7 +85,7 @@ char *obj_to_string_internal(struct obj *val) {
   return res;
 }
 
-void to_string_k(struct obj *v, struct obj *k, struct obj_env *env) {
+void to_string_k(struct obj *v, struct obj *k, struct env_obj *env) {
   char *res = obj_to_string_internal(v);
 
   OBJECT_STRING_OBJ_NEW(result_str, res);
@@ -97,7 +97,7 @@ void to_string_k(struct obj *v, struct obj *k, struct obj_env *env) {
   __builtin_unreachable();
 }
 
-void println_k(struct obj *v, struct obj *k, struct obj_env *env) {
+void println_k(struct obj *v, struct obj *k, struct env_obj *env) {
   char *res = obj_to_string_internal(v);
 
   printf("%s\n", res);

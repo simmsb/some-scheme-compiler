@@ -110,14 +110,14 @@ void scheme_start(struct thunk *initial_thunk) {
   if (current_thunk->closr->size == CLOSURE_ONE) {
     struct closure_obj *closr = current_thunk->closr;
     struct obj *rand = current_thunk->one.rand;
-    struct obj_env *env = current_thunk->closr->env;
+    struct env_obj *env = current_thunk->closr->env;
     free(current_thunk);
     closr->fn_1(rand, env);
   } else {
     struct closure_obj *closr = current_thunk->closr;
     struct obj *rand = current_thunk->two.rand;
     struct obj *cont = current_thunk->two.cont;
-    struct obj_env *env = current_thunk->closr->env;
+    struct env_obj *env = current_thunk->closr->env;
     free(current_thunk);
     closr->fn_2(rand, cont, env);
   }
@@ -148,8 +148,8 @@ struct obj object_base_new(enum object_tag tag) {
 }
 
 struct closure_obj object_closure_one_new(void (*fn)(struct obj *,
-                                                           struct obj_env *),
-                                          struct obj_env *env) {
+                                                           struct env_obj *),
+                                          struct env_obj *env) {
   return (struct closure_obj){.base = object_base_new(OBJ_CLOSURE),
                               .size = CLOSURE_ONE,
                               .fn_1 = fn,
@@ -158,8 +158,8 @@ struct closure_obj object_closure_one_new(void (*fn)(struct obj *,
 
 struct closure_obj object_closure_two_new(void (*fn)(struct obj *,
                                                            struct obj *,
-                                                           struct obj_env *),
-                                          struct obj_env *env) {
+                                                           struct env_obj *),
+                                          struct env_obj *env) {
   return (struct closure_obj){.base = object_base_new(OBJ_CLOSURE),
                               .size = CLOSURE_TWO,
                               .fn_2 = fn,

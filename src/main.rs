@@ -256,7 +256,7 @@ fn do_codegen(
         name: "main_lambda".into(),
         typ: CType::Void,
         args: vec![("input_obj".into(), CType::Ptr(Rc::new(CType::Struct("obj".into())))),
-                   ("input_env".into(), CType::Ptr(Rc::new(CType::Struct("obj_env".into()))))
+                   ("input_env".into(), CType::Ptr(Rc::new(CType::Struct("env_obj".into()))))
         ],
         body: root_stmts,
     };

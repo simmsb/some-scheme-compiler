@@ -64,11 +64,13 @@ void mark_closure(struct obj *, struct gc_context *);
 
 struct obj *toheap_env(struct obj *, struct gc_context *);
 void mark_env(struct obj *, struct gc_context *);
-void free_env(struct obj *);
 
 struct obj *toheap_int_obj(struct obj *, struct gc_context *);
 
 struct obj *toheap_string_obj(struct obj *, struct gc_context *);
+
+struct obj *toheap_cell(struct obj *, struct gc_context *);
+void mark_cell(struct obj *, struct gc_context *);
 
 struct gc_context gc_make_context(void);
 

@@ -22,9 +22,12 @@ static struct gc_funcs gc_func_map[] = {
     [OBJ_CLOSURE] = (struct gc_funcs){.toheap = toheap_closure,
                                       .mark = mark_closure,
                                       .free = gc_free_noop},
-    [OBJ_ENV] = (struct gc_funcs){.toheap = toheap_env,
+    [ENV_OBJ] = (struct gc_funcs){.toheap = toheap_env,
                                   .mark = mark_env,
                                   .free = gc_free_noop},
+    [OBJ_CELL] = (struct gc_funcs){.toheap = toheap_cell,
+                                   .mark = mark_cell,
+                                   .free = gc_free_noop},
     [OBJ_INT] = (struct gc_funcs){.toheap = toheap_int_obj,
                                   .mark = gc_mark_noop,
                                   .free = gc_free_noop},
@@ -64,14 +67,41 @@ static bool maybe_mark_grey_and_queue(struct gc_context *ctx, struct obj *obj) {
   }
 }
 
+struct obj *toheap_cell(struct obj *cell_obj, struct gc_context *ctx) {
+  struct cell_obj *cell = (struct cell_obj *)cell_obj;
+
+  if (cell->base.on_stack) {
+    TOUCH_OBJECT(cell, "toheap_cell");
+    struct cell_obj *heap_cell = gc_malloc(sizeof(struct cell_obj));
+    *heap_cell = *cell;
+    cell = heap_cell;
+  }
+
+  if (cell->val) {
+    struct ptr_toupdate_pair p = {.toupdate = (struct obj **)&cell->val,
+                                  .on_stack = (struct obj *)cell->val};
+    queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, p);
+  }
+
+  return (struct obj *)cell;
+}
+
+void mark_cell(struct obj *cell_obj, struct gc_context *ctx) {
+  struct cell_obj *cell = (struct cell_obj *)cell_obj;
+
+  if (cell->val) {
+    maybe_mark_grey_and_queue(ctx, cell->val);
+  }
+}
+
 struct obj *toheap_env(struct obj *env_obj, struct gc_context *ctx) {
-  struct obj_env *env = (struct obj_env *)env_obj;
-  struct obj_env *orig_env = env;
+  struct env_obj *env = (struct env_obj *)env_obj;
+  struct env_obj *orig_env = env;
 
   if (env->base.on_stack) {
     TOUCH_OBJECT(env, "toheap_env");
-    struct obj_env *heap_env =
-        gc_malloc(sizeof(struct obj_env) + env->len * sizeof(struct obj *));
+    struct env_obj *heap_env =
+        gc_malloc(sizeof(struct env_obj) + env->len * sizeof(struct obj *));
 
     heap_env->base = env->base;
     heap_env->len = env->len;
@@ -94,7 +124,7 @@ struct obj *toheap_env(struct obj *env_obj, struct gc_context *ctx) {
 }
 
 void mark_env(struct obj *env_obj, struct gc_context *ctx) {
-  struct obj_env *env = (struct obj_env *)env_obj;
+  struct env_obj *env = (struct env_obj *)env_obj;
   for (size_t i = 0; i < env->len; i++) {
     if (!env->env[i])
       continue;
@@ -272,12 +302,15 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
 
   switch (thnk->closr->size) {
   case CLOSURE_ONE:
-    if (thnk->one.rand) gc_mark_obj(ctx, thnk->one.rand);
+    if (thnk->one.rand)
+      gc_mark_obj(ctx, thnk->one.rand);
     num_marked++;
     break;
   case CLOSURE_TWO:
-    if (thnk->two.rand) gc_mark_obj(ctx, thnk->two.rand);
-    if (thnk->two.cont) gc_mark_obj(ctx, thnk->two.cont);
+    if (thnk->two.rand)
+      gc_mark_obj(ctx, thnk->two.rand);
+    if (thnk->two.cont)
+      gc_mark_obj(ctx, thnk->two.cont);
     num_marked++;
     num_marked++;
     break;

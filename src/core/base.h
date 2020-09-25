@@ -39,13 +39,13 @@
   }
 
 #define OBJECT_ENV_OBJ_NEW(NAME, S)                                            \
-  struct obj_env *(NAME);                                                      \
+  struct env_obj *(NAME);                                                      \
   do {                                                                         \
     ENV_STRUCT(S) *new_env = alloca(sizeof(ENV_STRUCT(S)));                    \
-    new_env->base = object_base_new(OBJ_ENV);                                  \
+    new_env->base = object_base_new(ENV_OBJ);                                  \
     new_env->len = sizeof(S) / sizeof(struct obj *);                           \
     memset(&new_env->env, 0, sizeof(S));                                       \
-    (NAME) = (struct obj_env *)new_env;                                        \
+    (NAME) = (struct env_obj *)new_env;                                        \
   } while (0)
 
 #define OBJECT_CLOSURE_ONE_NEW(NAME, FN, ENV)                                  \
@@ -63,6 +63,16 @@
     struct closure_obj *new_obj = alloca(sizeof(struct closure_obj));          \
     *new_obj = object_closure_two_new((FN), (ENV));                            \
     TOUCH_OBJECT(new_obj, "closure_two_new");                                  \
+    (NAME) = (struct obj *)new_obj;                                            \
+  } while (0)
+
+#define OBJECT_CELL_OBJ_NEW(NAME, VAL)                                         \
+  struct obj *(NAME);                                                          \
+  do {                                                                         \
+    struct cell_obj *new_obj = alloca(sizeof(struct cell_obj));                \
+    new_obj->base = object_base_new(OBJ_CELL);                                 \
+    new_obj->val = (VAL);                                                      \
+    TOUCH_OBJECT(new_obj, "object_cell_new");                                  \
     (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
 
@@ -89,12 +99,13 @@ enum __attribute__((__packed__)) closure_size {
 
 enum __attribute__((__packed__)) object_tag {
   OBJ_CLOSURE = 1,
-  OBJ_ENV,
+  ENV_OBJ,
   OBJ_INT,
   OBJ_STR,
+  OBJ_CELL,
 };
 
-#define LAST_OBJ_TYPE OBJ_STR
+#define LAST_OBJ_TYPE OBJ_CELL
 
 enum __attribute__((__packed__)) gc_mark_type { WHITE = 0, GREY, BLACK };
 
@@ -109,20 +120,25 @@ struct obj {
 
 // builtin objects
 
-struct obj_env {
+struct env_obj {
   struct obj base;
   size_t len;
   struct obj *env[];
+};
+
+struct cell_obj {
+  struct obj base;
+  struct obj *val;
 };
 
 struct closure_obj {
   struct obj base;
   enum closure_size size;
   union {
-    void (*fn_1)(struct obj *, struct obj_env *);
-    void (*fn_2)(struct obj *, struct obj *, struct obj_env *);
+    void (*fn_1)(struct obj *, struct env_obj *);
+    void (*fn_2)(struct obj *, struct obj *, struct env_obj *);
   };
-  struct obj_env *env;
+  struct env_obj *env;
 };
 
 struct int_obj {
@@ -156,11 +172,11 @@ void run_minor_gc(struct thunk *);
 
 struct obj object_base_new(enum object_tag);
 struct closure_obj object_closure_one_new(void (*)(struct obj *,
-                                                   struct obj_env *),
-                                          struct obj_env *);
+                                                   struct env_obj *),
+                                          struct env_obj *);
 struct closure_obj object_closure_two_new(void (*)(struct obj *, struct obj *,
-                                                   struct obj_env *),
-                                          struct obj_env *);
+                                                   struct env_obj *),
+                                          struct env_obj *);
 struct int_obj object_int_obj_new(int64_t);
 
 #endif /* SOMESCHEME_H */

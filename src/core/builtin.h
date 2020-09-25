@@ -4,10 +4,10 @@
 #include "base.h"
 
 #define DEFINE_ZERO_ARG_FROM_BUILTIN(NAME)                                     \
-  void NAME##_k(struct obj *, struct obj_env *) __attribute__((noreturn))
+  void NAME##_k(struct obj *, struct env_obj *) __attribute__((noreturn))
 
 #define MAKE_ZERO_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                          \
-  void NAME##_k(struct obj *k, struct obj_env *env) {                          \
+  void NAME##_k(struct obj *k, struct env_obj *env) {                          \
     TYPE result = (INNER)();                                                   \
                                                                                \
     call_closure_one(k, (struct obj *)&result);                                \
@@ -16,10 +16,10 @@
   }
 
 #define DEFINE_ONE_ARG_FROM_BUILTIN(NAME)                                      \
-  void NAME##_k(struct obj *, struct obj *, struct obj_env *)
+  void NAME##_k(struct obj *, struct obj *, struct env_obj *)
 
 #define MAKE_ONE_ARG_FROM_BUILTIN(NAME, TYPE)                                  \
-  void NAME##_k(struct obj *v, struct obj *k, struct obj_env *env) {           \
+  void NAME##_k(struct obj *v, struct obj *k, struct env_obj *env) {           \
     TYPE result = (NAME)(v);                                                   \
                                                                                \
     call_closure_one(k, (struct obj *)&result);                                \
@@ -28,9 +28,9 @@
   }
 
 #define DEFINE_TWO_ARG_FROM_BUILTIN(NAME)                                      \
-  void NAME##_k(struct obj *, struct obj *, struct obj_env *)                  \
+  void NAME##_k(struct obj *, struct obj *, struct env_obj *)                  \
       __attribute__((noreturn));                                               \
-  void NAME##_k_2(struct obj *, struct obj *, struct obj_env *)                \
+  void NAME##_k_2(struct obj *, struct obj *, struct env_obj *)                \
       __attribute__((noreturn))
 
 struct unary_env {
@@ -38,7 +38,7 @@ struct unary_env {
 };
 
 #define MAKE_TWO_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                           \
-  void NAME##_k(struct obj *v, struct obj *k, struct obj_env *env) {           \
+  void NAME##_k(struct obj *v, struct obj *k, struct env_obj *env) {           \
     OBJECT_ENV_OBJ_NEW(tmp_env, struct unary_env);                             \
     tmp_env->env[0] = v;                                                       \
     struct closure_obj func_2_clos =                                           \
@@ -48,7 +48,7 @@ struct unary_env {
                                                                                \
     __builtin_unreachable();                                                   \
   }                                                                            \
-  void NAME##_k_2(struct obj *v, struct obj *k, struct obj_env *env) {         \
+  void NAME##_k_2(struct obj *v, struct obj *k, struct env_obj *env) {         \
                                                                                \
     TYPE result = (INNER)(env->env[0], v);                                     \
                                                                                \
@@ -65,9 +65,9 @@ DEFINE_TWO_ARG_FROM_BUILTIN(div);
 
 DEFINE_ZERO_ARG_FROM_BUILTIN(exit);
 
-void to_string_k(struct obj *, struct obj *, struct obj_env *)
+void to_string_k(struct obj *, struct obj *, struct env_obj *)
     __attribute__((noreturn));
-void println_k(struct obj *, struct obj *, struct obj_env *)
+void println_k(struct obj *, struct obj *, struct env_obj *)
     __attribute__((noreturn));
 
 #endif // SOMESCHEME_BUILTIN_H
