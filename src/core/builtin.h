@@ -39,7 +39,7 @@ struct unary_env {
 
 #define MAKE_TWO_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                           \
   void NAME##_k(struct obj *v, struct obj *k, struct obj_env *env) {           \
-    OBJECT_ENV_OBJ_NEW(tmp_env, 2, struct unary_env);                          \
+    OBJECT_ENV_OBJ_NEW(tmp_env, struct unary_env);                             \
     tmp_env->env[0] = v;                                                       \
     struct closure_obj func_2_clos =                                           \
         object_closure_two_new(NAME##_k_2, tmp_env);                           \
@@ -52,7 +52,7 @@ struct unary_env {
                                                                                \
     TYPE result = (INNER)(env->env[0], v);                                     \
                                                                                \
-    call_closure_one(k, (struct obj *)&result);                             \
+    call_closure_one(k, (struct obj *)&result);                                \
                                                                                \
     __builtin_unreachable();                                                   \
   }

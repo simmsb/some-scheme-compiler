@@ -5,8 +5,8 @@
 #include "base.h"
 #include "common.h"
 #include "gc.h"
-#include "queue.h"
 #include "hash_table.h"
+#include "queue.h"
 #include "vec.h"
 
 MAKE_VECTOR(struct obj *, gc_heap_nodes);
@@ -50,6 +50,9 @@ void gc_mark_noop(struct obj *obj, struct gc_context *ctx) {
 // Mark an object as grey and add it to the queue of grey nodes 'if' it is not
 // already grey or black
 static bool maybe_mark_grey_and_queue(struct gc_context *ctx, struct obj *obj) {
+  if (DEBUG_ONLY(!obj)) {
+    DEBUG_FPRINTF(stderr, "trying to mark NULL!\n");
+  }
   switch (obj->mark) {
   case BLACK:
   case GREY:
@@ -72,19 +75,29 @@ struct obj *toheap_env(struct obj *env_obj, struct gc_context *ctx) {
 
     heap_env->base = env->base;
     heap_env->len = env->len;
+    memset(&heap_env->env, 0, env->len * sizeof(struct obj *));
     env = heap_env;
   }
 
   for (size_t i = 0; i < env->len; i++) {
-    env->env[i] = gc_toheap(ctx, orig_env->env[i]);
+    struct obj *obj_ptr = orig_env->env[i];
+
+    if (!obj_ptr)
+      continue;
+
+    struct ptr_toupdate_pair p = {.toupdate = &env->env[i],
+                                  .on_stack = obj_ptr};
+    queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, p);
   }
 
-  return (struct obj*)env;
+  return (struct obj *)env;
 }
 
 void mark_env(struct obj *env_obj, struct gc_context *ctx) {
   struct obj_env *env = (struct obj_env *)env_obj;
   for (size_t i = 0; i < env->len; i++) {
+    if (!env->env[i])
+      continue;
     maybe_mark_grey_and_queue(ctx, env->env[i]);
   }
 }
@@ -99,10 +112,10 @@ struct obj *toheap_closure(struct obj *obj, struct gc_context *ctx) {
     clos = heap_clos;
   }
 
-  if (clos->env && clos->env->base.on_stack) {
-    TOUCH_OBJECT(&clos->env->base, "toheap_closure");
-
-    clos->env = (struct obj_env *)gc_toheap(ctx, (struct obj *)clos->env);
+  if (clos->env) {
+    struct ptr_toupdate_pair p = {.toupdate = (struct obj **)&clos->env,
+                                  .on_stack = (struct obj *)clos->env};
+    queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, p);
   }
 
   return (struct obj *)clos;
@@ -112,7 +125,7 @@ void mark_closure(struct obj *obj, struct gc_context *ctx) {
   struct closure_obj *clos = (struct closure_obj *)obj;
 
   if (clos->env) {
-    gc_mark_obj(ctx, (struct obj *)clos->env);
+    maybe_mark_grey_and_queue(ctx, (struct obj *)clos->env);
   }
 }
 
@@ -173,12 +186,15 @@ struct obj *gc_toheap(struct gc_context *ctx, struct obj *obj) {
 
   // if we've already copied this object,
   // we know that anything it points to must also be sorted
-  struct obj **maybe_copied = hash_table_ptr_map_lookup(
-      ctx->updated_pointers, (size_t)obj);
+  struct obj **maybe_copied =
+      hash_table_ptr_map_lookup(ctx->updated_pointers, (size_t)obj);
   if (maybe_copied != NULL) {
     return *maybe_copied;
   }
 
+  if (DEBUG_ONLY(obj->tag > LAST_OBJ_TYPE)) {
+    RUNTIME_ERROR("object %p is corrupted\n", (void *)obj);
+  }
   DEBUG_FPRINTF(stderr, "copying object of type: %u to heap\n", obj->tag);
 
   struct obj *new_obj = gc_func_map[obj->tag].toheap(obj, ctx);
@@ -198,8 +214,7 @@ struct obj *gc_toheap(struct gc_context *ctx, struct obj *obj) {
 // The parameter 'thnk' is the current thunk holding everything together
 // The thunk should be heap allocated and freed after being called
 void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
-
-  DEBUG_FPRINTF(stderr, "before gc, thnk->closr->env = %p\n", thnk->closr->env);
+  DEBUG_FPRINTF(stderr, "minor gc occuring\n");
 
   // initially mark the closure and it's arguments to be applied
   thnk->closr = (struct closure_obj *)gc_toheap(ctx, (struct obj *)thnk->closr);
@@ -224,8 +239,10 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
   while (queue_ptr_toupdate_pair_len(&ctx->pointers_toupdate) > 0) {
     struct ptr_toupdate_pair to_update =
         queue_ptr_toupdate_pair_dequeue(&ctx->pointers_toupdate);
-    struct obj **maybe_copied =
-        hash_table_ptr_map_lookup(ctx->updated_pointers, (size_t)to_update.on_stack);
+
+    struct obj **maybe_copied = hash_table_ptr_map_lookup(
+        ctx->updated_pointers, (size_t)to_update.on_stack);
+
     if (maybe_copied != NULL) {
       // we've already updated this pointer, just update the pointer that
       // needs to be updated
@@ -236,12 +253,11 @@ void gc_minor(struct gc_context *ctx, struct thunk *thnk) {
       assert(to_update.on_stack != NULL);
 
       struct obj *on_heap = gc_toheap(ctx, to_update.on_stack);
-      hash_table_ptr_map_insert(ctx->updated_pointers, (size_t)to_update.on_stack, on_heap);
+      hash_table_ptr_map_insert(ctx->updated_pointers,
+                                (size_t)to_update.on_stack, on_heap);
       *to_update.toupdate = on_heap;
     }
   }
-
-  DEBUG_FPRINTF(stderr, "after gc, thnk->closr->env = %p\n", thnk->closr->env);
 
   gc_major(ctx, thnk);
 }
@@ -256,12 +272,12 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
 
   switch (thnk->closr->size) {
   case CLOSURE_ONE:
-    gc_mark_obj(ctx, thnk->one.rand);
+    if (thnk->one.rand) gc_mark_obj(ctx, thnk->one.rand);
     num_marked++;
     break;
   case CLOSURE_TWO:
-    gc_mark_obj(ctx, thnk->two.rand);
-    gc_mark_obj(ctx, thnk->two.cont);
+    if (thnk->two.rand) gc_mark_obj(ctx, thnk->two.rand);
+    if (thnk->two.cont) gc_mark_obj(ctx, thnk->two.cont);
     num_marked++;
     num_marked++;
     break;
@@ -269,11 +285,18 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
 
   while (queue_gc_grey_nodes_len(&ctx->grey_nodes) > 0) {
     struct obj *next_obj = queue_gc_grey_nodes_dequeue(&ctx->grey_nodes);
+    if (DEBUG_ONLY(!next_obj)) {
+      RUNTIME_ERROR("NULL was added to mark queue!");
+    }
     gc_mark_obj(ctx, next_obj);
     num_marked++;
   }
 
-  printf("marked %zu objects\n", num_marked);
+  DEBUG_FPRINTF("marked %zu objects\n", num_marked);
+
+#ifdef DEBUG
+  int seen_types[LAST_OBJ_TYPE] = {0};
+#endif
 
   // go through each heap allocated object and gc them
   // not really the best, but it would be easy to improve
@@ -284,6 +307,10 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
     if (obj == NULL) {
       continue;
     }
+
+#ifdef DEBUG
+    seen_types[obj->tag - 1]++;
+#endif
 
     if (obj->mark == WHITE) {
       // free it, should this be done if the object is on the stack?
@@ -310,7 +337,14 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
     }
   }
 
-  printf("freed %zu objects\n", num_freed);
+  DEBUG_FPRINTF(stderr, "freed %zu objects\n", num_freed);
+
+#ifdef DEBUG
+  for (int i = 0; i < LAST_OBJ_TYPE; i++) {
+    printf("tag %d seen %d times\n", i + 1, seen_types[i]);
+  }
+#endif
+
   gc_heap_maintain();
 }
 

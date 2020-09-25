@@ -38,11 +38,13 @@
     T env;                                                                     \
   }
 
-#define OBJECT_ENV_OBJ_NEW(NAME, SIZE, S)                                      \
+#define OBJECT_ENV_OBJ_NEW(NAME, S)                                            \
   struct obj_env *(NAME);                                                      \
   do {                                                                         \
     ENV_STRUCT(S) *new_env = alloca(sizeof(ENV_STRUCT(S)));                    \
-    new_env->base = object_base_new(OBJ_ENV), new_env->len = (SIZE);           \
+    new_env->base = object_base_new(OBJ_ENV);                                  \
+    new_env->len = sizeof(S) / sizeof(struct obj *);                           \
+    memset(&new_env->env, 0, sizeof(S));                                       \
     (NAME) = (struct obj_env *)new_env;                                        \
   } while (0)
 
@@ -50,8 +52,7 @@
   struct obj *(NAME);                                                          \
   do {                                                                         \
     struct closure_obj *new_obj = alloca(sizeof(struct closure_obj));          \
-    struct closure_obj tmp_obj = object_closure_one_new((FN), (ENV));          \
-    memcpy(new_obj, &tmp_obj, sizeof(struct closure_obj));                     \
+    *new_obj = object_closure_one_new((FN), (ENV));                            \
     TOUCH_OBJECT(new_obj, "closure_one_new");                                  \
     (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
@@ -60,13 +61,12 @@
   struct obj *(NAME);                                                          \
   do {                                                                         \
     struct closure_obj *new_obj = alloca(sizeof(struct closure_obj));          \
-    struct closure_obj tmp_obj = object_closure_two_new((FN), (ENV));          \
-    memcpy(new_obj, &tmp_obj, sizeof(struct closure_obj));                     \
+    *new_obj = object_closure_two_new((FN), (ENV));                            \
     TOUCH_OBJECT(new_obj, "closure_two_new");                                  \
     (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
 
-#ifndef NDEBUG
+#ifdef DEBUG
 #define TOUCH_OBJECT(OBJ, S)                                                   \
   do {                                                                         \
     fprintf(stderr,                                                            \
@@ -94,13 +94,15 @@ enum __attribute__((__packed__)) object_tag {
   OBJ_STR,
 };
 
+#define LAST_OBJ_TYPE OBJ_STR
+
 enum __attribute__((__packed__)) gc_mark_type { WHITE = 0, GREY, BLACK };
 
 struct obj {
   enum object_tag tag;
   enum gc_mark_type mark;
   bool on_stack;
-#ifndef NDEBUG
+#ifdef DEBUG
   char *last_touched_by;
 #endif
 };
@@ -115,10 +117,10 @@ struct obj_env {
 
 struct closure_obj {
   struct obj base;
-  const enum closure_size size;
+  enum closure_size size;
   union {
-    void (*const fn_1)(struct obj *, struct obj_env *);
-    void (*const fn_2)(struct obj *, struct obj *, struct obj_env *);
+    void (*fn_1)(struct obj *, struct obj_env *);
+    void (*fn_2)(struct obj *, struct obj *, struct obj_env *);
   };
   struct obj_env *env;
 };
@@ -153,12 +155,11 @@ void scheme_start(struct thunk *);
 void run_minor_gc(struct thunk *);
 
 struct obj object_base_new(enum object_tag);
-struct closure_obj object_closure_one_new(void (*const)(struct obj *,
-                                                        struct obj_env *),
+struct closure_obj object_closure_one_new(void (*)(struct obj *,
+                                                   struct obj_env *),
                                           struct obj_env *);
-struct closure_obj object_closure_two_new(void (*const)(struct obj *,
-                                                        struct obj *,
-                                                        struct obj_env *),
+struct closure_obj object_closure_two_new(void (*)(struct obj *, struct obj *,
+                                                   struct obj_env *),
                                           struct obj_env *);
 struct int_obj object_int_obj_new(int64_t);
 

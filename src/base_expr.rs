@@ -106,9 +106,9 @@ impl BExpr {
                                 Expr::App(
                                     Rc::new(Expr::Lam(Scope::new(
                                         Binder(FreeVar::fresh_named("_unused")),
-                                        Rc::new(acc),
+                                        Rc::new(e.clone().into_expr_inner(&env)),
                                     ))),
-                                    Rc::new(e.clone().into_expr_inner(&env)),
+                                    Rc::new(acc),
                                 )
                             })
                     }
@@ -123,12 +123,12 @@ impl BExpr {
                             Rc::new(body),
                         ))
                     }
-                    [first, rest @ ..] => {
-                        let first = Expr::Lam(Scope::new(
-                            Binder(env.get(first).unwrap().clone()),
+                    [rest @ .., last] => {
+                        let last = Expr::Lam(Scope::new(
+                            Binder(env.get(last).unwrap().clone()),
                             Rc::new(body),
                         ));
-                        rest.iter().fold(first, |acc, p| {
+                        rest.iter().rev().fold(last, |acc, p| {
                             Expr::Lam(Scope::new(Binder(env.get(p).unwrap().clone()), Rc::new(acc)))
                         })
                     }

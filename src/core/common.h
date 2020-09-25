@@ -8,7 +8,7 @@
     exit(1);                                                                   \
   } while (0)
 
-#ifndef NDEBUG
+#ifdef DEBUG
 #define DEBUG_LOG(F, ...)                                                      \
   do {                                                                         \
     fprintf(stderr, "DEBUG (%s:%d): ", __func__, __LINE__);                    \
@@ -18,7 +18,7 @@
 #define DEBUG_LOG(...)                                                         \
   do {                                                                         \
   } while (0)
-#endif // NDEBUG
+#endif // DEBUG
 
 #endif // SOMESCHEME_COMMON_H
 
@@ -37,14 +37,14 @@
     (B) = temp;                                                                \
   } while (0)
 
-#ifndef NDEBUG
+#ifdef DEBUG
 #define DEBUG_FPRINTF(...) fprintf(__VA_ARGS__)
 #else
 #define DEBUG_FPRINTF(...) (void)0
-#endif // NDEBUG
+#endif // DEBUG
 
-#ifndef NDEBUG
+#ifdef DEBUG
 #define DEBUG_ONLY(expr) expr
 #else
 #define DEBUG_ONLY(expr) 0
-#endif // NDEBUG
+#endif // DEBUG

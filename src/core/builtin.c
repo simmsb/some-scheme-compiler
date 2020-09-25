@@ -3,9 +3,9 @@
 #include "common.h"
 
 struct int_obj object_int_obj_add(struct obj *lhs, struct obj *rhs) {
-  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
+  if (lhs->tag != OBJ_INT)
     RUNTIME_ERROR("Left operand to binary add not of integer type");
-  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
+  if (rhs->tag != OBJ_INT)
     RUNTIME_ERROR("Right operand to binary add not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;
@@ -15,9 +15,9 @@ struct int_obj object_int_obj_add(struct obj *lhs, struct obj *rhs) {
 }
 
 struct int_obj object_int_obj_sub(struct obj *lhs, struct obj *rhs) {
-  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
+  if (lhs->tag != OBJ_INT)
     RUNTIME_ERROR("Left operand to binary sub not of integer type");
-  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
+  if (rhs->tag != OBJ_INT)
     RUNTIME_ERROR("Right operand to binary sub not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;
@@ -27,9 +27,9 @@ struct int_obj object_int_obj_sub(struct obj *lhs, struct obj *rhs) {
 }
 
 struct int_obj object_int_obj_mul(struct obj *lhs, struct obj *rhs) {
-  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
+  if (lhs->tag != OBJ_INT)
     RUNTIME_ERROR("Left operand to binary mul not of integer type");
-  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
+  if (rhs->tag != OBJ_INT)
     RUNTIME_ERROR("Right operand to binary mul not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;
@@ -39,9 +39,9 @@ struct int_obj object_int_obj_mul(struct obj *lhs, struct obj *rhs) {
 }
 
 struct int_obj object_int_obj_div(struct obj *lhs, struct obj *rhs) {
-  if (DEBUG_ONLY(lhs->tag != OBJ_INT))
+  if (lhs->tag != OBJ_INT)
     RUNTIME_ERROR("Left operand to binary div not of integer type");
-  if (DEBUG_ONLY(rhs->tag != OBJ_INT))
+  if (rhs->tag != OBJ_INT)
     RUNTIME_ERROR("Right operand to binary div not of integer type");
 
   struct int_obj *lhs_int = (struct int_obj *)lhs;
@@ -73,7 +73,7 @@ char *obj_to_string_internal(struct obj *val) {
     ALLOC_SPRINTF(res, "closure|%p", (void *)((struct closure_obj *)val)->fn_1);
     break;
   case OBJ_INT:
-    ALLOC_SPRINTF(res, "%d", ((struct int_obj *)val)->val);
+    ALLOC_SPRINTF(res, "%ld", ((struct int_obj *)val)->val);
     break;
   case OBJ_STR:
     ALLOC_SPRINTF(res, "%s", ((struct string_obj *)val)->buf);

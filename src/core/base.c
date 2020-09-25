@@ -18,14 +18,14 @@ static void *stack_initial;
 static jmp_buf setjmp_env_buf;
 
 void call_closure_one(struct obj *rator, struct obj *rand) {
-  if (DEBUG_ONLY(rator->tag != OBJ_CLOSURE)) {
+  if (rator->tag != OBJ_CLOSURE) {
     RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator,
                   rator->tag);
   }
 
   struct closure_obj *closure = (struct closure_obj *)rator;
 
-  if (DEBUG_ONLY(closure->size != CLOSURE_ONE)) {
+  if (closure->size != CLOSURE_ONE) {
     printf("Trying to call: %p\n", closure->fn_1);
     RUNTIME_ERROR("Called a closure that takes two args with one arg");
   }
@@ -34,25 +34,22 @@ void call_closure_one(struct obj *rator, struct obj *rand) {
     closure->fn_1(rand, closure->env);
   } else {
     // TODO: move to our own gc allocator?
-    struct thunk thnk = {
-        .closr = closure,
-        .one = {rand},
-    };
     struct thunk *thnk_heap = malloc(sizeof(struct thunk));
-    memcpy(thnk_heap, &thnk, sizeof(struct thunk));
+    thnk_heap->closr = closure;
+    thnk_heap->one.rand = rand;
     run_minor_gc(thnk_heap);
   }
 }
 
 void call_closure_two(struct obj *rator, struct obj *rand, struct obj *cont) {
-  if (DEBUG_ONLY(rator->tag != OBJ_CLOSURE)) {
+  if (rator->tag != OBJ_CLOSURE) {
     RUNTIME_ERROR("Called object (%p) was not a closure but was: %d", rator,
                   rator->tag);
   }
 
   struct closure_obj *closure = (struct closure_obj *)rator;
 
-  if (DEBUG_ONLY(closure->size != CLOSURE_TWO)) {
+  if (closure->size != CLOSURE_TWO) {
     RUNTIME_ERROR("Called a closure that takes one arg with two args");
   }
 
@@ -60,12 +57,10 @@ void call_closure_two(struct obj *rator, struct obj *rand, struct obj *cont) {
     closure->fn_2(rand, cont, closure->env);
   } else {
     // TODO: move to our own gc allocator?
-    struct thunk thnk = {
-        .closr = closure,
-        .two = {rand, cont},
-    };
     struct thunk *thnk_heap = malloc(sizeof(struct thunk));
-    memcpy(thnk_heap, &thnk, sizeof(struct thunk));
+    thnk_heap->closr = closure;
+    thnk_heap->two.rand = rand;
+    thnk_heap->two.cont = cont;
     run_minor_gc(thnk_heap);
   }
 }
@@ -146,13 +141,13 @@ struct obj object_base_new(enum object_tag tag) {
       .tag = tag,
       .mark = WHITE,
       .on_stack = true,
-#ifndef NDEBUG
+#ifdef DEBUG
       .last_touched_by = "object_init",
 #endif
   };
 }
 
-struct closure_obj object_closure_one_new(void (*const fn)(struct obj *,
+struct closure_obj object_closure_one_new(void (*fn)(struct obj *,
                                                            struct obj_env *),
                                           struct obj_env *env) {
   return (struct closure_obj){.base = object_base_new(OBJ_CLOSURE),
@@ -161,7 +156,7 @@ struct closure_obj object_closure_one_new(void (*const fn)(struct obj *,
                               .env = env};
 }
 
-struct closure_obj object_closure_two_new(void (*const fn)(struct obj *,
+struct closure_obj object_closure_two_new(void (*fn)(struct obj *,
                                                            struct obj *,
                                                            struct obj_env *),
                                           struct obj_env *env) {

@@ -83,7 +83,6 @@ impl LiftedLambda {
             name: "OBJECT_ENV_OBJ_NEW".into(),
             args: vec![
                 Rc::new(CExpr::Ident(dest.to_owned().into())),
-                Rc::new(CExpr::LitUInt(self.freevars.len())),
                 Rc::new(CType::Struct(format!("env_{}", self.id).into())),
             ],
         })

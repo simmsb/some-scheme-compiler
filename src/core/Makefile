@@ -2,11 +2,8 @@ TESTS = test_queue test_base
 
 default: compiled_result
 
-compiled_result.o : compiled_result.c base.h builtin.h
-	$(CC) $(CFLAGS) -c compiled_result.c -o compiled_result.o
-
-compiled_result : compiled_result.o base.o builtin.o gc.o bit_array.o
-	$(CC) $(CFLAGS) compiled_result.o gc.o base.o builtin.o bit_array.o -o compiled_result
+compiled_result : compiled_result.c base.c builtin.c gc.c bit_array.c
+	$(CC) $(CFLAGS) compiled_result.c gc.c base.c builtin.c bit_array.c -o compiled_result
 
 base.o : base.c base.h gc.h queue.h vec.h common.h
 	$(CC) $(CFLAGS) -c base.c -o base.o
