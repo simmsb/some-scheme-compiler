@@ -295,6 +295,8 @@ fn builtin_ident_codegen(
         "/" => (2, "div_k"),
         "^" => (2, "xor_k"),
         "cons" => (2, "cons_k"),
+        "cons?" => (2, "is_cons_k"),
+        "null?" => (2, "is_null_k"),
         "car" => (2, "car_k"),
         "cdr" => (2, "cdr_k"),
         "string-concat" => (2, "string_concat_k"),

@@ -50,7 +50,9 @@ pub fn parse_builtin(input: &str) -> nom::IResult<&str, BExpr> {
         "*",
         "/",
         "^",
+        "cons?",
         "cons",
+        "null?",
         "car",
         "cdr",
         "string-concat",
@@ -65,7 +67,7 @@ pub fn parse_builtin(input: &str) -> nom::IResult<&str, BExpr> {
     }
 
     if let Ok((i, _n)) =
-        nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>("void")(input)
+        nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>("null")(input)
     {
         return Ok((i, BExpr::Lit(Literal::Void)));
     }
@@ -74,14 +76,18 @@ pub fn parse_builtin(input: &str) -> nom::IResult<&str, BExpr> {
 }
 
 pub fn parse_str(input: &str) -> nom::IResult<&str, BExpr> {
-    map!(
+    alt!(
         input,
-        delimited!(
-            tag!("\""),
-            escaped!(is_not!("\""), '\\', one_of!("\"n\\")),
-            tag!("\"")
-        ),
-        |s| BExpr::Lit(Literal::String(s.to_owned()))
+        complete!(map!(
+            delimited!(
+                tag!("\""),
+                escaped!(is_not!("\""), '\\', one_of!("\"n\\")),
+                tag!("\"")
+            ),
+            |s| BExpr::Lit(Literal::String(s.to_owned()))
+        )) | complete!(map!(tag!("\"\""), |_| BExpr::Lit(Literal::String(
+            "".to_owned()
+        ))))
     )
 }
 

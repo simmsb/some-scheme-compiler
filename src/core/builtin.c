@@ -107,6 +107,22 @@ void cdr_k(struct obj *cons, struct obj *k, struct env_obj *env) {
   __builtin_unreachable();
 }
 
+void is_cons_k(struct obj *v, struct obj *k, struct env_obj *env) {
+  _Bool r = v->tag == OBJ_CONS;
+
+  OBJECT_INT_OBJ_NEW(res, r);
+
+  call_closure_one(k, res);
+}
+
+void is_null_k(struct obj *v, struct obj *k, struct env_obj *env) {
+  _Bool r = v == NULL;
+
+  OBJECT_INT_OBJ_NEW(res, r);
+
+  call_closure_one(k, res);
+}
+
 void string_concat_k(struct obj *v, struct obj *k, struct env_obj *env) {
   OBJECT_ENV_OBJ_NEW(tmp_env, struct unary_env);
   tmp_env->env[0] = v;
