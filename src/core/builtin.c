@@ -2,58 +2,24 @@
 #include "base.h"
 #include "common.h"
 
-struct int_obj object_int_obj_add(struct obj *lhs, struct obj *rhs) {
-  if (lhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Left operand to binary add not of integer type");
-  if (rhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Right operand to binary add not of integer type");
+#define MAKE_INT_BINOP(NAME, OP)                                               \
+  struct int_obj object_int_obj_##NAME(struct obj *lhs, struct obj *rhs) {     \
+    if (lhs->tag != OBJ_INT)                                                   \
+      RUNTIME_ERROR("Left operand to binary add not of integer type");         \
+    if (rhs->tag != OBJ_INT)                                                   \
+      RUNTIME_ERROR("Right operand to binary add not of integer type");        \
+                                                                               \
+    struct int_obj *lhs_int = (struct int_obj *)lhs;                           \
+    struct int_obj *rhs_int = (struct int_obj *)rhs;                           \
+                                                                               \
+    return object_int_obj_new(lhs_int->val OP rhs_int->val);                   \
+  } MAKE_TWO_ARG_FROM_BUILTIN(NAME, object_int_obj_##NAME, struct int_obj)
 
-  struct int_obj *lhs_int = (struct int_obj *)lhs;
-  struct int_obj *rhs_int = (struct int_obj *)rhs;
-
-  return object_int_obj_new(lhs_int->val + rhs_int->val);
-}
-
-struct int_obj object_int_obj_sub(struct obj *lhs, struct obj *rhs) {
-  if (lhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Left operand to binary sub not of integer type");
-  if (rhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Right operand to binary sub not of integer type");
-
-  struct int_obj *lhs_int = (struct int_obj *)lhs;
-  struct int_obj *rhs_int = (struct int_obj *)rhs;
-
-  return object_int_obj_new(lhs_int->val - rhs_int->val);
-}
-
-struct int_obj object_int_obj_mul(struct obj *lhs, struct obj *rhs) {
-  if (lhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Left operand to binary mul not of integer type");
-  if (rhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Right operand to binary mul not of integer type");
-
-  struct int_obj *lhs_int = (struct int_obj *)lhs;
-  struct int_obj *rhs_int = (struct int_obj *)rhs;
-
-  return object_int_obj_new(lhs_int->val * rhs_int->val);
-}
-
-struct int_obj object_int_obj_div(struct obj *lhs, struct obj *rhs) {
-  if (lhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Left operand to binary div not of integer type");
-  if (rhs->tag != OBJ_INT)
-    RUNTIME_ERROR("Right operand to binary div not of integer type");
-
-  struct int_obj *lhs_int = (struct int_obj *)lhs;
-  struct int_obj *rhs_int = (struct int_obj *)rhs;
-
-  return object_int_obj_new(lhs_int->val / rhs_int->val);
-}
-
-MAKE_TWO_ARG_FROM_BUILTIN(add, object_int_obj_add, struct int_obj);
-MAKE_TWO_ARG_FROM_BUILTIN(sub, object_int_obj_sub, struct int_obj);
-MAKE_TWO_ARG_FROM_BUILTIN(mul, object_int_obj_mul, struct int_obj);
-MAKE_TWO_ARG_FROM_BUILTIN(div, object_int_obj_div, struct int_obj);
+MAKE_INT_BINOP(add, +);
+MAKE_INT_BINOP(sub, -);
+MAKE_INT_BINOP(mul, *);
+MAKE_INT_BINOP(div, /);
+MAKE_INT_BINOP(xor, ^);
 
 MAKE_TWO_ARG_FROM_BUILTIN(cons, object_cons_obj_new, struct cons_obj);
 
@@ -84,7 +50,7 @@ char *obj_to_string_internal(struct obj *val) {
   case OBJ_CELL:
     return obj_to_string_internal(((struct cell_obj *)val)->val);
   default:
-    RUNTIME_ERROR("Unexpected object tag: %d", val->tag);
+    RUNTIME_ERROR("Unexpected object tag to to_string: %d", val->tag);
   }
 
   return res;
@@ -97,7 +63,7 @@ void to_string_k(struct obj *v, struct obj *k, struct env_obj *env) {
 
   free(res);
 
-  call_closure_one(k, (struct obj *)&result_str);
+  call_closure_one(k, result_str);
 
   __builtin_unreachable();
 }
@@ -137,6 +103,56 @@ void cdr_k(struct obj *cons, struct obj *k, struct env_obj *env) {
   struct obj *cdr = ((struct cons_obj *)cons)->cdr;
 
   call_closure_one(k, cdr);
+
+  __builtin_unreachable();
+}
+
+void string_concat_k(struct obj *v, struct obj *k, struct env_obj *env) {
+  OBJECT_ENV_OBJ_NEW(tmp_env, struct unary_env);
+  tmp_env->env[0] = v;
+  struct closure_obj func_2_clos =
+      object_closure_two_new(string_concat_k_2, tmp_env);
+
+  call_closure_one(k, (struct obj *)&func_2_clos);
+
+  __builtin_unreachable();
+}
+
+static char *convert_to_str(struct obj *v) {
+  char *res;
+
+  switch (v->tag) {
+  case OBJ_INT:
+    ALLOC_SPRINTF(res, "%c", (int)((struct int_obj *)v)->val);
+    break;
+  case OBJ_STR:
+    ALLOC_SPRINTF(res, "%s", ((struct string_obj *)v)->buf);
+    break;
+  case OBJ_CELL:
+    res = convert_to_str(((struct cell_obj *)v)->val);
+    break;
+  default:
+    RUNTIME_ERROR("Unexpected object tag to convert_to_str: %d", v->tag);
+  }
+
+  return res;
+}
+
+void string_concat_k_2(struct obj *v, struct obj *k, struct env_obj *env) {
+  char *lhs = convert_to_str(env->env[0]);
+  char *rhs = convert_to_str(v);
+
+  char *res;
+  ALLOC_SPRINTF(res, "%s%s", lhs, rhs);
+
+  free(lhs);
+  free(rhs);
+
+  OBJECT_STRING_OBJ_NEW(result_str, res);
+
+  free(res);
+
+  call_closure_one(k, result_str);
 
   __builtin_unreachable();
 }

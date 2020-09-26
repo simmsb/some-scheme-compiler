@@ -49,9 +49,11 @@ pub fn parse_builtin(input: &str) -> nom::IResult<&str, BExpr> {
         "-",
         "*",
         "/",
+        "^",
         "cons",
         "car",
         "cdr",
+        "string-concat",
     ];
 
     for &name in &builtin_names {

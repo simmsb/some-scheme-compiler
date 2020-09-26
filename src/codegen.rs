@@ -286,16 +286,18 @@ fn builtin_ident_codegen(
     supporting_stmts: &mut Vec<Rc<CStmt<'static>>>,
 ) -> CExpr<'static> {
     let (num_params, runtime_name) = match ident {
-        "to_string" => (2, "to_string_k"), // these are two-param because they take the cont param
+        "tostring" => (2, "to_string_k"), // these are two-param because they take the cont param
         "println" => (2, "println_k"),
         "exit" => (1, "exit_k"),
         "+" => (2, "add_k"),
         "-" => (2, "sub_k"),
         "*" => (2, "mul_k"),
         "/" => (2, "div_k"),
+        "^" => (2, "xor_k"),
         "cons" => (2, "cons_k"),
         "car" => (2, "car_k"),
         "cdr" => (2, "cdr_k"),
+        "string-concat" => (2, "string_concat_k"),
         _ => panic!("unknown builtin: {}", ident),
     };
 

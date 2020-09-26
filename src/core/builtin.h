@@ -18,9 +18,9 @@
 #define DEFINE_ONE_ARG_FROM_BUILTIN(NAME)                                      \
   void NAME##_k(struct obj *, struct obj *, struct env_obj *)
 
-#define MAKE_ONE_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                                  \
+#define MAKE_ONE_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                           \
   void NAME##_k(struct obj *v, struct obj *k, struct env_obj *env) {           \
-    TYPE result = (INNER)(v);                                                   \
+    TYPE result = (INNER)(v);                                                  \
                                                                                \
     call_closure_one(k, (struct obj *)&result);                                \
                                                                                \
@@ -62,8 +62,11 @@ DEFINE_TWO_ARG_FROM_BUILTIN(add);
 DEFINE_TWO_ARG_FROM_BUILTIN(sub);
 DEFINE_TWO_ARG_FROM_BUILTIN(mul);
 DEFINE_TWO_ARG_FROM_BUILTIN(div);
+DEFINE_TWO_ARG_FROM_BUILTIN(xor);
 
 DEFINE_TWO_ARG_FROM_BUILTIN(cons);
+
+DEFINE_TWO_ARG_FROM_BUILTIN(string_concat);
 
 DEFINE_ZERO_ARG_FROM_BUILTIN(exit);
 
