@@ -11,6 +11,7 @@ pub mod literals;
 pub mod parse;
 pub mod utils;
 
+use base_expr::BExpr;
 use cdsl::CDecl;
 use cdsl::CExpr;
 use cdsl::CStmt;
@@ -66,13 +67,15 @@ fn main() -> Result<(), Error> {
         buf
     };
 
-    let expr = match parse::parse_exp(&input_exp) {
-        Ok((_, expr)) => expr,
+    let body = match parse::parse_body(&input_exp) {
+        Ok((_, body)) => body,
         Err(e) => {
             eprintln!("Error parsing input: {}", e);
             return Err(failure::err_msg("parse fail"));
         }
     };
+
+    let expr = BExpr::App(Rc::new(BExpr::Lam(Vec::new(), body)), Vec::new());
 
     if opts.debug {
         eprintln!("\n\nexpr after parsing: ");

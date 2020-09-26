@@ -10,16 +10,27 @@ use crate::expr::Expr;
 use crate::literals::Literal;
 use crate::utils::clone_rc;
 
+// TODO: Type Families magick?
+
 #[derive(Debug, Clone)]
 pub enum BExpr {
     Var(String),
     Lit(Literal),
     BuiltinIdent(String),
     Set(String, Rc<BExpr>),
-    Let(Vec<(String, BExpr)>, Vec<BExpr>),
-    Lam(Vec<String>, Vec<BExpr>),
+    Let(Vec<(String, BExpr)>, BExprBody),
+    Lam(Vec<String>, BExprBody),
     App(Rc<BExpr>, Vec<BExpr>),
 }
+
+#[derive(Debug, Clone)]
+pub enum BExprBodyExpr {
+    Def(String, BExpr),
+    Expr(BExpr),
+}
+
+#[derive(Debug, Clone)]
+pub struct BExprBody(pub Vec<BExprBodyExpr>, pub Rc<BExpr>);
 
 impl BExpr {
     pub fn pretty<'a, D>(&self, allocator: &'a D) -> DocBuilder<'a, D, ColorSpec>
@@ -64,14 +75,9 @@ impl BExpr {
                     )
                     .parens();
 
-                let body_pret = allocator.intersperse(
-                    body.iter().map(|e| e.pretty(allocator)),
-                    allocator.hardline(),
-                );
-
                 bindings_pret
                     .append(allocator.line())
-                    .append(body_pret)
+                    .append(body.pretty(allocator))
                     .nest(1)
                     .group()
                     .parens()
@@ -88,18 +94,13 @@ impl BExpr {
                     )
                     .parens();
 
-                let body_pret = allocator.intersperse(
-                    body.iter().map(|e| e.pretty(allocator)),
-                    allocator.hardline(),
-                );
-
                 allocator
                     .text("lambda")
                     .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
                     .append(allocator.space())
                     .append(pat_pret)
                     .append(allocator.line())
-                    .append(body_pret)
+                    .append(body.pretty(allocator))
                     .nest(1)
                     .group()
                     .parens()
@@ -136,15 +137,10 @@ impl BExpr {
                     .into_iter()
                     .map(|(n, e)| (n, e.rewrite(f)))
                     .collect();
-                let new_body: Vec<_> = body.into_iter().map(|e| e.rewrite(f)).collect();
 
-                BExpr::Let(new_bindings, new_body)
+                BExpr::Let(new_bindings, body.rewrite(f))
             }
-            BExpr::Lam(n, es) => {
-                let new_es = es.into_iter().map(|e| e.rewrite(f)).collect();
-
-                BExpr::Lam(n, new_es)
-            }
+            BExpr::Lam(n, body) => BExpr::Lam(n, body.rewrite(f)),
             BExpr::App(r, es) => {
                 let new_es = es.into_iter().map(|e| e.rewrite(f)).collect();
 
@@ -171,9 +167,21 @@ impl BExpr {
         self.rewrite(&t)
     }
 
+    pub fn lift_defines(self) -> BExpr {
+        fn t(e: BExpr) -> BExpr {
+            match e {
+                BExpr::Let(e, body) => BExpr::Let(e, body.pull_defines()),
+                BExpr::Lam(e, body) => BExpr::Lam(e, body.pull_defines()),
+                _ => e,
+            }
+        }
+
+        self.rewrite(&t)
+    }
+
     pub fn into_expr(self) -> Expr {
         let env = HashMap::new();
-        self.remove_let().into_expr_inner(&env)
+        self.lift_defines().remove_let().into_expr_inner(&env)
     }
 
     fn into_expr_inner(self, env: &HashMap<String, FreeVar<String>>) -> Expr {
@@ -196,6 +204,7 @@ impl BExpr {
             BExpr::Lam(params, body) => {
                 let mut env = env.clone();
                 env.extend(params.iter().map(|n| (n.clone(), FreeVar::fresh_named(n))));
+                let body = body.as_expressions();
 
                 let body = match body.as_slice() {
                     [] => Expr::Lit(Ignore(Literal::Void)),
@@ -248,5 +257,99 @@ impl BExpr {
             }
             BExpr::Let(_, _) => unreachable!(),
         }
+    }
+}
+
+impl BExprBodyExpr {
+    pub fn pretty<'a, D>(&self, allocator: &'a D) -> DocBuilder<'a, D, ColorSpec>
+    where
+        D: DocAllocator<'a, ColorSpec>,
+        D::Doc: Clone,
+    {
+        match self {
+            BExprBodyExpr::Def(n, e) => {
+                let e_pret = e.pretty(allocator);
+
+                allocator
+                    .text("define")
+                    .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                    .append(allocator.space())
+                    .append(
+                        allocator
+                            .text(n.to_owned())
+                            .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
+                    )
+                    .append(allocator.space())
+                    .append(e_pret)
+                    .group()
+                    .parens()
+            }
+            BExprBodyExpr::Expr(e) => e.pretty(allocator),
+        }
+    }
+
+    pub fn rewrite<F: Fn(BExpr) -> BExpr>(self, f: &F) -> BExprBodyExpr {
+        match self {
+            BExprBodyExpr::Def(n, e) => BExprBodyExpr::Def(n, e.rewrite(f)),
+            BExprBodyExpr::Expr(e) => BExprBodyExpr::Expr(e.rewrite(f)),
+        }
+    }
+}
+
+impl BExprBody {
+    pub fn pretty<'a, D>(&self, allocator: &'a D) -> DocBuilder<'a, D, ColorSpec>
+    where
+        D: DocAllocator<'a, ColorSpec>,
+        D::Doc: Clone,
+    {
+        allocator.intersperse(
+            self.0
+                .iter()
+                .map(|e| e.pretty(allocator))
+                .chain(std::iter::once(self.1.pretty(allocator))),
+            allocator.hardline(),
+        )
+    }
+
+    pub fn rewrite<F: Fn(BExpr) -> BExpr>(self, f: &F) -> BExprBody {
+        BExprBody(
+            self.0.into_iter().map(|e| e.rewrite(f)).collect(),
+            Rc::new(clone_rc(self.1).rewrite(f)),
+        )
+    }
+
+    pub fn pull_defines(self) -> BExprBody {
+        let mut defines = Vec::new();
+
+        let body = self
+            .0
+            .into_iter()
+            .map(|e| match e {
+                BExprBodyExpr::Def(n, e) => {
+                    defines.push(n.clone());
+                    BExprBodyExpr::Expr(BExpr::Set(n, Rc::new(e)))
+                }
+                BExprBodyExpr::Expr(_) => e,
+            })
+            .collect();
+
+        let let_bindings = defines
+            .into_iter()
+            .map(|n| (n, BExpr::Lit(Literal::Void)))
+            .collect();
+        let let_ = BExpr::Let(let_bindings, BExprBody(body, self.1));
+
+        BExprBody(Vec::new(), Rc::new(let_))
+    }
+
+    pub fn as_expressions(self) -> Vec<BExpr> {
+        self.0
+            .into_iter()
+            .map(|e| match e {
+                BExprBodyExpr::Def(_, _) => panic!("should be removed"),
+                BExprBodyExpr::Expr(e) => e,
+            })
+            .chain(std::iter::once(clone_rc(self.1)))
+            .collect()
     }
 }

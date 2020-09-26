@@ -1,5 +1,6 @@
 use nom::character::complete::multispace0;
 use nom::complete;
+use nom::many1;
 use nom::tuple;
 use nom::{alt, char};
 use nom::{delimited, escaped, is_not, map, map_res};
@@ -7,6 +8,8 @@ use nom::{many0, one_of, opt, pair, tag, take_while1};
 use std::rc::Rc;
 
 use crate::base_expr::BExpr;
+use crate::base_expr::BExprBody;
+use crate::base_expr::BExprBodyExpr;
 use crate::literals::Literal;
 
 fn ident_char(chr: char) -> bool {
@@ -79,6 +82,35 @@ fn parse_set(input: &str) -> nom::IResult<&str, BExpr> {
     Ok((i, BExpr::Set(n, Rc::new(e))))
 }
 
+fn parse_define(input: &str) -> nom::IResult<&str, BExprBodyExpr> {
+    let (i, _) = pair!(input, char!('('), ws!(tag!("define")))?;
+    let (i, ident) = ws!(i, parse_ident)?;
+    let (i, expr) = ws!(i, parse_exp)?;
+    let (i, _) = char!(i, ')')?;
+
+    Ok((i, BExprBodyExpr::Def(ident, expr)))
+}
+
+pub fn parse_body(input: &str) -> nom::IResult<&str, BExprBody> {
+    fn inner(input: &str) -> nom::IResult<&str, BExprBodyExpr> {
+        alt!(
+            input,
+            complete!(parse_define) | map!(parse_exp, BExprBodyExpr::Expr)
+        )
+    }
+
+    let (i, mut body) = many1!(input, ws!(inner))?;
+
+    let last = match body.pop().unwrap() {
+        BExprBodyExpr::Def(_, _) => {
+            return Err(nom::Err::Error((input, nom::error::ErrorKind::Many1)))
+        }
+        BExprBodyExpr::Expr(e) => e,
+    };
+
+    Ok((i, BExprBody(body, Rc::new(last))))
+}
+
 fn parse_let(input: &str) -> nom::IResult<&str, BExpr> {
     fn let_inner(input: &str) -> nom::IResult<&str, (String, BExpr)> {
         let (i, _) = char!(input, '(')?;
@@ -91,7 +123,7 @@ fn parse_let(input: &str) -> nom::IResult<&str, BExpr> {
 
     let (i, _) = tuple!(input, char!('('), ws!(tag!("let")), char!('('))?;
     let (i, bindings) = many0!(i, ws!(let_inner))?;
-    let (i, (_, body, _)) = tuple!(i, char!(')'), many0!(ws!(parse_exp)), char!(')'))?;
+    let (i, (_, body, _)) = tuple!(i, char!(')'), ws!(parse_body), char!(')'))?;
 
     Ok((i, BExpr::Let(bindings, body)))
 }
@@ -99,7 +131,7 @@ fn parse_let(input: &str) -> nom::IResult<&str, BExpr> {
 fn parse_lam(input: &str) -> nom::IResult<&str, BExpr> {
     let (i, _) = pair!(input, char!('('), ws!(tag!("lambda")))?;
     let (i, plist) = delimited!(i, char!('('), many0!(ws!(parse_ident)), char!(')'))?;
-    let (i, body) = ws!(i, many0!(ws!(parse_exp)))?;
+    let (i, body) = ws!(i, parse_body)?;
     let (i, _) = char!(i, ')')?;
 
     Ok((i, BExpr::Lam(plist, body)))
