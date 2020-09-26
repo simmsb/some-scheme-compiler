@@ -15,6 +15,7 @@ pub enum Expr {
     Var(Var<String>),
     Lit(Ignore<Literal>),
     BuiltinIdent(Ignore<String>),
+    If(Rc<Expr>, Rc<Expr>, Rc<Expr>),
     Set(Var<String>, Rc<Expr>),
     Lam(Scope<Binder<String>, Rc<Expr>>),
     App(Rc<Expr>, Rc<Expr>),
@@ -70,6 +71,22 @@ impl Expr {
                     .group()
                     .parens()
             }
+            Expr::If(c, ift, iff) => {
+                let c_pret = c.pretty(allocator);
+                let ift_pret = ift.pretty(allocator);
+                let iff_pret = iff.pretty(allocator);
+
+                allocator
+                    .text("if")
+                    .append(allocator.space())
+                    .append(c_pret)
+                    .append(allocator.space())
+                    .append(ift_pret)
+                    .append(allocator.space())
+                    .append(iff_pret)
+                    .group()
+                    .parens()
+            }
             Expr::App(f, v) => {
                 let f_pret = f.pretty(allocator);
                 let v_pret = v.pretty(allocator);
@@ -92,7 +109,7 @@ impl Expr {
         Ok(())
     }
 
-    pub fn into_fexpr(self, k: Rc<cont_expr::KExpr>) -> flat_expr::FExpr {
+    pub fn into_fexpr(self, k: Rc<cont_expr::AExp>) -> flat_expr::FExpr {
         cont_expr::t_c(self, k).into_fexpr()
     }
 }

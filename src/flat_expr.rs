@@ -13,6 +13,7 @@ use crate::utils::clone_rc;
 
 #[derive(Debug, Clone, BoundTerm)]
 pub enum FExpr {
+    If(Rc<FExpr>, Rc<FExpr>, Rc<FExpr>),
     LamOne(Scope<Binder<String>, Rc<FExpr>>),
     LamTwo(Scope<Binder<String>, Scope<Binder<String>, Rc<FExpr>>>),
     Var(Var<String>),
@@ -51,6 +52,22 @@ impl FExpr {
         D::Doc: Clone,
     {
         match self {
+            FExpr::If(c, ift, iff) => {
+                let c_pret = c.pretty(allocator);
+                let ift_pret = ift.pretty(allocator);
+                let iff_pret = iff.pretty(allocator);
+
+                allocator
+                    .text("if")
+                    .append(allocator.space())
+                    .append(c_pret)
+                    .append(allocator.space())
+                    .append(ift_pret)
+                    .append(allocator.space())
+                    .append(iff_pret)
+                    .group()
+                    .parens()
+            }
             FExpr::SetThen(n, v, c) => {
                 let v_pret = v.pretty(allocator);
                 let c_pret = c.pretty(allocator);
@@ -81,9 +98,7 @@ impl FExpr {
                     .as_string(pat)
                     .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone())
                     .parens();
-                let body_pret = allocator
-                    .line_()
-                    .append(body.pretty(allocator));
+                let body_pret = allocator.line_().append(body.pretty(allocator));
 
                 allocator
                     .text("lambda")
@@ -116,9 +131,7 @@ impl FExpr {
                     .append(allocator.space())
                     .append(cont_pret)
                     .parens();
-                let body_pret = allocator
-                    .line_()
-                    .append(body.pretty(allocator));
+                let body_pret = allocator.line_().append(body.pretty(allocator));
 
                 allocator
                     .text("lambda")
@@ -204,7 +217,6 @@ impl FExpr {
                     Rc::new(body),
                 ));
                 LExpr::Lifted(Ignore(id))
-
             }
             FExpr::Var(v) => LExpr::Var(v),
             FExpr::Lit(l) => LExpr::Lit(l),
@@ -224,6 +236,12 @@ impl FExpr {
                 let p = clone_rc(p).lift_lambdas_internal(ctx);
                 let k = clone_rc(k).lift_lambdas_internal(ctx);
                 LExpr::CallTwo(Rc::new(f), Rc::new(p), Rc::new(k))
+            }
+            FExpr::If(c, ift, iff) => {
+                let c = clone_rc(c).lift_lambdas_internal(ctx);
+                let ift = clone_rc(ift).lift_lambdas_internal(ctx);
+                let iff = clone_rc(iff).lift_lambdas_internal(ctx);
+                LExpr::If(Rc::new(c), Rc::new(ift), Rc::new(iff))
             }
         }
     }

@@ -16,6 +16,7 @@ pub enum LExpr {
     Lit(Ignore<Literal>),
     BuiltinIdent(Ignore<String>),
     SetThen(Var<String>, Rc<LExpr>, Rc<LExpr>),
+    If(Rc<LExpr>, Rc<LExpr>, Rc<LExpr>),
     Lifted(Ignore<usize>),
     CallOne(Rc<LExpr>, Rc<LExpr>),
     CallTwo(Rc<LExpr>, Rc<LExpr>, Rc<LExpr>),
@@ -72,6 +73,22 @@ impl LExpr {
                     .append(v_pret)
                     .append(allocator.space())
                     .append(c_pret)
+                    .group()
+                    .parens()
+            }
+            LExpr::If(c, ift, iff) => {
+                let c_pret = c.pretty(allocator);
+                let ift_pret = ift.pretty(allocator);
+                let iff_pret = iff.pretty(allocator);
+
+                allocator
+                    .text("if")
+                    .append(allocator.space())
+                    .append(c_pret)
+                    .append(allocator.space())
+                    .append(ift_pret)
+                    .append(allocator.space())
+                    .append(iff_pret)
                     .group()
                     .parens()
             }

@@ -148,7 +148,7 @@ struct obj object_base_new(enum object_tag tag) {
 }
 
 struct closure_obj object_closure_one_new(void (*fn)(struct obj *,
-                                                           struct env_obj *),
+                                                     struct env_obj *),
                                           struct env_obj *env) {
   return (struct closure_obj){.base = object_base_new(OBJ_CLOSURE),
                               .size = CLOSURE_ONE,
@@ -156,9 +156,8 @@ struct closure_obj object_closure_one_new(void (*fn)(struct obj *,
                               .env = env};
 }
 
-struct closure_obj object_closure_two_new(void (*fn)(struct obj *,
-                                                           struct obj *,
-                                                           struct env_obj *),
+struct closure_obj object_closure_two_new(void (*fn)(struct obj *, struct obj *,
+                                                     struct env_obj *),
                                           struct env_obj *env) {
   return (struct closure_obj){.base = object_base_new(OBJ_CLOSURE),
                               .size = CLOSURE_TWO,
@@ -168,4 +167,9 @@ struct closure_obj object_closure_two_new(void (*fn)(struct obj *,
 
 struct int_obj object_int_obj_new(int64_t val) {
   return (struct int_obj){.base = object_base_new(OBJ_INT), .val = val};
+}
+
+struct cons_obj object_cons_obj_new(struct obj *car, struct obj *cdr) {
+  return (struct cons_obj){
+      .base = object_base_new(OBJ_CONS), .car = car, .cdr = cdr};
 }

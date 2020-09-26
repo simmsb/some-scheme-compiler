@@ -86,7 +86,7 @@ fn main() -> Result<(), Error> {
         eprintln!("");
     }
 
-    let k = Rc::new(cont_expr::KExpr::BuiltinIdent(moniker::Ignore(
+    let k = Rc::new(cont_expr::AExp::BuiltinIdent(moniker::Ignore(
         "exit".into(),
     )));
 

@@ -55,6 +55,8 @@ MAKE_TWO_ARG_FROM_BUILTIN(sub, object_int_obj_sub, struct int_obj);
 MAKE_TWO_ARG_FROM_BUILTIN(mul, object_int_obj_mul, struct int_obj);
 MAKE_TWO_ARG_FROM_BUILTIN(div, object_int_obj_div, struct int_obj);
 
+MAKE_TWO_ARG_FROM_BUILTIN(cons, object_cons_obj_new, struct cons_obj);
+
 int exit_inner() { exit(0); }
 
 MAKE_ZERO_ARG_FROM_BUILTIN(exit, exit_inner, int);
@@ -67,6 +69,9 @@ char *obj_to_string_internal(struct obj *val) {
   }
 
   switch (val->tag) {
+  case OBJ_CONS:
+    ALLOC_SPRINTF(res, "cons");
+    break;
   case OBJ_CLOSURE:
     ALLOC_SPRINTF(res, "closure|%p", (void *)((struct closure_obj *)val)->fn_1);
     break;
@@ -105,6 +110,33 @@ void println_k(struct obj *v, struct obj *k, struct env_obj *env) {
   free(res);
 
   call_closure_one(k, NULL);
+
+  __builtin_unreachable();
+}
+
+_Bool obj_is_truthy(struct obj *obj) {
+  switch (obj->tag) {
+  case OBJ_INT:
+    return ((struct int_obj *)obj)->val != 0;
+  case OBJ_STR:
+    return ((struct string_obj *)obj)->len != 0;
+  default:
+    return true;
+  }
+}
+
+void car_k(struct obj *cons, struct obj *k, struct env_obj *env) {
+  struct obj *car = ((struct cons_obj *)cons)->car;
+
+  call_closure_one(k, car);
+
+  __builtin_unreachable();
+}
+
+void cdr_k(struct obj *cons, struct obj *k, struct env_obj *env) {
+  struct obj *cdr = ((struct cons_obj *)cons)->cdr;
+
+  call_closure_one(k, cdr);
 
   __builtin_unreachable();
 }

@@ -102,6 +102,7 @@ enum __attribute__((__packed__)) object_tag {
   ENV_OBJ,
   OBJ_INT,
   OBJ_STR,
+  OBJ_CONS,
   OBJ_CELL,
 };
 
@@ -129,6 +130,12 @@ struct env_obj {
 struct cell_obj {
   struct obj base;
   struct obj *val;
+};
+
+struct cons_obj {
+  struct obj base;
+  struct obj *car;
+  struct obj *cdr;
 };
 
 struct closure_obj {
@@ -178,5 +185,6 @@ struct closure_obj object_closure_two_new(void (*)(struct obj *, struct obj *,
                                                    struct env_obj *),
                                           struct env_obj *);
 struct int_obj object_int_obj_new(int64_t);
+struct cons_obj object_cons_obj_new(struct obj *, struct obj *);
 
 #endif /* SOMESCHEME_H */

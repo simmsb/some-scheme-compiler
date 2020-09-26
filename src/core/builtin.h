@@ -18,9 +18,9 @@
 #define DEFINE_ONE_ARG_FROM_BUILTIN(NAME)                                      \
   void NAME##_k(struct obj *, struct obj *, struct env_obj *)
 
-#define MAKE_ONE_ARG_FROM_BUILTIN(NAME, TYPE)                                  \
+#define MAKE_ONE_ARG_FROM_BUILTIN(NAME, INNER, TYPE)                                  \
   void NAME##_k(struct obj *v, struct obj *k, struct env_obj *env) {           \
-    TYPE result = (NAME)(v);                                                   \
+    TYPE result = (INNER)(v);                                                   \
                                                                                \
     call_closure_one(k, (struct obj *)&result);                                \
                                                                                \
@@ -63,11 +63,16 @@ DEFINE_TWO_ARG_FROM_BUILTIN(sub);
 DEFINE_TWO_ARG_FROM_BUILTIN(mul);
 DEFINE_TWO_ARG_FROM_BUILTIN(div);
 
+DEFINE_TWO_ARG_FROM_BUILTIN(cons);
+
 DEFINE_ZERO_ARG_FROM_BUILTIN(exit);
 
-void to_string_k(struct obj *, struct obj *, struct env_obj *)
-    __attribute__((noreturn));
-void println_k(struct obj *, struct obj *, struct env_obj *)
-    __attribute__((noreturn));
+DEFINE_ONE_ARG_FROM_BUILTIN(to_string);
+DEFINE_ONE_ARG_FROM_BUILTIN(println);
+
+DEFINE_ONE_ARG_FROM_BUILTIN(car);
+DEFINE_ONE_ARG_FROM_BUILTIN(cdr);
+
+_Bool obj_is_truthy(struct obj *);
 
 #endif // SOMESCHEME_BUILTIN_H

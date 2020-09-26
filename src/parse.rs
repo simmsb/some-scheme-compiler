@@ -42,7 +42,17 @@ pub fn parse_var(input: &str) -> nom::IResult<&str, BExpr> {
 }
 
 pub fn parse_builtin(input: &str) -> nom::IResult<&str, BExpr> {
-    let builtin_names = ["to_string", "println", "+", "-", "*", "/"];
+    let builtin_names = [
+        "tostring",
+        "println",
+        "+",
+        "-",
+        "*",
+        "/",
+        "cons",
+        "car",
+        "cdr",
+    ];
 
     for &name in &builtin_names {
         if let Ok((i, _n)) =
@@ -73,6 +83,23 @@ pub fn parse_str(input: &str) -> nom::IResult<&str, BExpr> {
     )
 }
 
+fn parse_if(input: &str) -> nom::IResult<&str, BExpr> {
+    let (i, _) = pair!(input, char!('('), ws!(tag!("if")))?;
+    let (i, cond) = ws!(i, parse_exp)?;
+    let (i, ift) = ws!(i, parse_exp)?;
+    let (i, iff) = opt!(i, ws!(parse_exp))?;
+    let (i, _) = char!(i, ')')?;
+
+    Ok((
+        i,
+        BExpr::If(
+            Rc::new(cond),
+            Rc::new(ift),
+            Rc::new(iff.unwrap_or(BExpr::Lit(Literal::Void))),
+        ),
+    ))
+}
+
 fn parse_set(input: &str) -> nom::IResult<&str, BExpr> {
     let (i, _) = pair!(input, char!('('), ws!(tag!("set!")))?;
     let (i, n) = ws!(i, parse_ident)?;
@@ -95,7 +122,7 @@ pub fn parse_body(input: &str) -> nom::IResult<&str, BExprBody> {
     fn inner(input: &str) -> nom::IResult<&str, BExprBodyExpr> {
         alt!(
             input,
-            complete!(parse_define) | map!(parse_exp, BExprBodyExpr::Expr)
+            complete!(parse_define) | complete!(map!(parse_exp, BExprBodyExpr::Expr))
         )
     }
 
@@ -155,6 +182,7 @@ pub fn parse_exp(input: &str) -> nom::IResult<&str, BExpr> {
             | complete!(parse_lam)
             | complete!(parse_set)
             | complete!(parse_let)
+            | complete!(parse_if)
             | complete!(parse_app)
     )
 }

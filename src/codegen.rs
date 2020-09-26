@@ -286,13 +286,16 @@ fn builtin_ident_codegen(
     supporting_stmts: &mut Vec<Rc<CStmt<'static>>>,
 ) -> CExpr<'static> {
     let (num_params, runtime_name) = match ident {
-        "to_string" => (2, "to_string_k"),
+        "to_string" => (2, "to_string_k"), // these are two-param because they take the cont param
         "println" => (2, "println_k"),
         "exit" => (1, "exit_k"),
         "+" => (2, "add_k"),
         "-" => (2, "sub_k"),
         "*" => (2, "mul_k"),
         "/" => (2, "div_k"),
+        "cons" => (2, "cons_k"),
+        "car" => (2, "car_k"),
+        "cdr" => (2, "cdr_k"),
         _ => panic!("unknown builtin: {}", ident),
     };
 
@@ -389,6 +392,28 @@ fn do_codegen_internal(
             let lambda = ctx.lambdas.get(id).unwrap();
             let env_expr = Rc::new(CExpr::Ident("env".into()));
             lambda.generate_closure(&env_expr, ctx, supporting_stmts)
+        }
+        LExpr::If(c, ift, iff) => {
+            let mut ift_stmts = Vec::new();
+            let ift = do_codegen_internal(ift, ctx, &mut ift_stmts);
+            ift_stmts.push(Rc::new(CStmt::Expr(ift)));
+
+            let mut iff_stmts = Vec::new();
+            let iff = do_codegen_internal(iff, ctx, &mut iff_stmts);
+            iff_stmts.push(Rc::new(CStmt::Expr(iff)));
+
+            let stmt = CStmt::If {
+                cond: CExpr::MacroCall {
+                    name: "obj_is_truthy".into(),
+                    args: vec![Rc::new(do_codegen_internal(c, ctx, supporting_stmts))],
+                },
+                ift: Rc::new(CStmt::Block(ift_stmts)),
+                iff: Rc::new(CStmt::Block(iff_stmts)),
+            };
+
+            supporting_stmts.push(Rc::new(stmt));
+
+            CExpr::LitIInt(0)
         }
         LExpr::CallOne(c, a) => CExpr::MacroCall {
             name: "call_closure_one".into(),

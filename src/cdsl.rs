@@ -44,6 +44,11 @@ pub enum CExpr<'a> {
         name: Cow<'a, str>,
         args: Vec<Rc<dyn ToCDC + 'a>>,
     },
+    If {
+        cond: Rc<CExpr<'a>>,
+        ift: Rc<CExpr<'a>>,
+        iff: Rc<CExpr<'a>>,
+    },
     InitList(Vec<CExpr<'a>>),
     Ident(Cow<'a, str>),
     LitStr(Cow<'a, str>),
@@ -66,9 +71,10 @@ pub enum CType<'a> {
 
 #[derive(Debug)]
 pub enum CStmt<'a> {
-    IF {
+    If {
         cond: CExpr<'a>,
-        body: Rc<CStmt<'a>>,
+        ift: Rc<CStmt<'a>>,
+        iff: Rc<CStmt<'a>>,
     },
     While {
         cond: CExpr<'a>,
@@ -81,7 +87,7 @@ pub enum CStmt<'a> {
         body: Rc<CStmt<'a>>,
     },
     Decl(CDecl<'a>),
-    Block(Vec<CStmt<'a>>),
+    Block(Vec<Rc<CStmt<'a>>>),
     Expr(CExpr<'a>),
 }
 
@@ -218,6 +224,16 @@ impl<'a> ToC for CExpr<'a> {
                 vec_csep exprs,
                 chr '}'
             ),
+            If { cond, ift, iff } => export_helper!(
+                s,
+                chr '(',
+                exp cond,
+                str ")?(",
+                exp ift,
+                str "):(",
+                exp iff,
+                chr ')'
+            ),
             Ident(name) => s.push_str(name),
             LitStr(lit) => export_helper!(
                 s,
@@ -300,12 +316,14 @@ impl<'a> ToC for CStmt<'a> {
         use self::CStmt::*;
 
         match self {
-            IF { cond, body } => export_helper!(
+            If { cond, ift, iff } => export_helper!(
                 s,
                 str "if (",
                 exp cond,
                 chr ')',
-                exp body
+                exp ift,
+                str " else ",
+                exp iff
             ),
             While { cond, body } => export_helper!(
                 s,

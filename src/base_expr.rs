@@ -17,6 +17,7 @@ pub enum BExpr {
     Var(String),
     Lit(Literal),
     BuiltinIdent(String),
+    If(Rc<BExpr>, Rc<BExpr>, Rc<BExpr>),
     Set(String, Rc<BExpr>),
     Let(Vec<(String, BExpr)>, BExprBody),
     Lam(Vec<String>, BExprBody),
@@ -105,6 +106,22 @@ impl BExpr {
                     .group()
                     .parens()
             }
+            BExpr::If(c, ift, iff) => {
+                let c_pret = c.pretty(allocator);
+                let ift_pret = ift.pretty(allocator);
+                let iff_pret = iff.pretty(allocator);
+
+                allocator
+                    .text("if")
+                    .append(allocator.space())
+                    .append(c_pret)
+                    .append(allocator.space())
+                    .append(ift_pret)
+                    .append(allocator.space())
+                    .append(iff_pret)
+                    .group()
+                    .parens()
+            }
             BExpr::App(f, params) => {
                 let f_pret = f.pretty(allocator);
                 let v_pret = allocator
@@ -132,6 +149,11 @@ impl BExpr {
         let processed_children = match self {
             BExpr::Var(_) | BExpr::Lit(_) | BExpr::BuiltinIdent(_) => self,
             BExpr::Set(n, e) => BExpr::Set(n, Rc::new(clone_rc(e).rewrite(f))),
+            BExpr::If(c, ift, iff) => BExpr::If(
+                Rc::new(clone_rc(c).rewrite(f)),
+                Rc::new(clone_rc(ift).rewrite(f)),
+                Rc::new(clone_rc(iff).rewrite(f)),
+            ),
             BExpr::Let(bindings, body) => {
                 let new_bindings: Vec<_> = bindings
                     .into_iter()
@@ -244,6 +266,13 @@ impl BExpr {
                         })
                     }
                 }
+            }
+            BExpr::If(c, ift, iff) => {
+                let c = clone_rc(c).into_expr_inner(env);
+                let ift = clone_rc(ift).into_expr_inner(env);
+                let iff = clone_rc(iff).into_expr_inner(env);
+
+                Expr::If(Rc::new(c), Rc::new(ift), Rc::new(iff))
             }
             BExpr::App(expr, params) => {
                 let expr = clone_rc(expr).into_expr_inner(env);
