@@ -16,6 +16,7 @@ pub enum BExpr {
     Lit(Literal),
     BuiltinIdent(String),
     Set(String, Rc<BExpr>),
+    Let(Vec<(String, BExpr)>, Vec<BExpr>),
     Lam(Vec<String>, Vec<BExpr>),
     App(Rc<BExpr>, Vec<BExpr>),
 }
@@ -44,6 +45,34 @@ impl BExpr {
                     )
                     .append(allocator.space())
                     .append(e_pret)
+                    .group()
+                    .parens()
+            }
+            BExpr::Let(bindings, body) => {
+                let bindings_pret = allocator
+                    .intersperse(
+                        bindings.iter().map(|(n, e)| {
+                            allocator
+                                .text(n.to_owned())
+                                .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                                .append(allocator.line())
+                                .append(e.pretty(allocator))
+                                .group()
+                                .parens()
+                        }),
+                        allocator.line(),
+                    )
+                    .parens();
+
+                let body_pret = allocator.intersperse(
+                    body.iter().map(|e| e.pretty(allocator)),
+                    allocator.hardline(),
+                );
+
+                bindings_pret
+                    .append(allocator.line())
+                    .append(body_pret)
+                    .nest(1)
                     .group()
                     .parens()
             }
@@ -98,9 +127,53 @@ impl BExpr {
         Ok(())
     }
 
+    pub fn rewrite<F: Fn(BExpr) -> BExpr>(self, f: &F) -> BExpr {
+        let processed_children = match self {
+            BExpr::Var(_) | BExpr::Lit(_) | BExpr::BuiltinIdent(_) => self,
+            BExpr::Set(n, e) => BExpr::Set(n, Rc::new(clone_rc(e).rewrite(f))),
+            BExpr::Let(bindings, body) => {
+                let new_bindings: Vec<_> = bindings
+                    .into_iter()
+                    .map(|(n, e)| (n, e.rewrite(f)))
+                    .collect();
+                let new_body: Vec<_> = body.into_iter().map(|e| e.rewrite(f)).collect();
+
+                BExpr::Let(new_bindings, new_body)
+            }
+            BExpr::Lam(n, es) => {
+                let new_es = es.into_iter().map(|e| e.rewrite(f)).collect();
+
+                BExpr::Lam(n, new_es)
+            }
+            BExpr::App(r, es) => {
+                let new_es = es.into_iter().map(|e| e.rewrite(f)).collect();
+
+                BExpr::App(Rc::new(clone_rc(r).rewrite(f)), new_es)
+            }
+        };
+
+        f(processed_children)
+    }
+
+    pub fn remove_let(self) -> BExpr {
+        fn t(e: BExpr) -> BExpr {
+            match e {
+                BExpr::Let(b, e) => {
+                    let (names, params) = b.into_iter().unzip();
+
+                    let lam = Rc::new(BExpr::Lam(names, e));
+                    BExpr::App(lam, params)
+                }
+                _ => e,
+            }
+        }
+
+        self.rewrite(&t)
+    }
+
     pub fn into_expr(self) -> Expr {
         let env = HashMap::new();
-        self.into_expr_inner(&env)
+        self.remove_let().into_expr_inner(&env)
     }
 
     fn into_expr_inner(self, env: &HashMap<String, FreeVar<String>>) -> Expr {
@@ -173,6 +246,7 @@ impl BExpr {
                     }),
                 }
             }
+            BExpr::Let(_, _) => unreachable!(),
         }
     }
 }

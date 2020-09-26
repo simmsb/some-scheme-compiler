@@ -1,12 +1,13 @@
 use nom::character::complete::multispace0;
 use nom::complete;
+use nom::tuple;
 use nom::{alt, char};
 use nom::{delimited, escaped, is_not, map, map_res};
 use nom::{many0, one_of, opt, pair, tag, take_while1};
 use std::rc::Rc;
 
-use crate::literals::Literal;
 use crate::base_expr::BExpr;
+use crate::literals::Literal;
 
 fn ident_char(chr: char) -> bool {
     !" ()\n\r\"\'".contains(chr)
@@ -38,23 +39,20 @@ pub fn parse_var(input: &str) -> nom::IResult<&str, BExpr> {
 }
 
 pub fn parse_builtin(input: &str) -> nom::IResult<&str, BExpr> {
-    let builtin_names = [
-        "to_string",
-        "println",
-        "+",
-        "-",
-        "*",
-        "/",
-    ];
+    let builtin_names = ["to_string", "println", "+", "-", "*", "/"];
 
     for &name in &builtin_names {
-        if let Ok((i, _n)) = nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>(name)(input) {
+        if let Ok((i, _n)) =
+            nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>(name)(input)
+        {
             return Ok((i, BExpr::BuiltinIdent(name.to_owned())));
         }
     }
 
-    if let Ok((i, _n)) = nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>("void")(input) {
-        return Ok((i, BExpr::Lit(Literal::Void)))
+    if let Ok((i, _n)) =
+        nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>("void")(input)
+    {
+        return Ok((i, BExpr::Lit(Literal::Void)));
     }
 
     Err(nom::Err::Error((input, nom::error::ErrorKind::Tag)))
@@ -75,10 +73,27 @@ pub fn parse_str(input: &str) -> nom::IResult<&str, BExpr> {
 fn parse_set(input: &str) -> nom::IResult<&str, BExpr> {
     let (i, _) = pair!(input, char!('('), ws!(tag!("set!")))?;
     let (i, n) = ws!(i, parse_ident)?;
-    let (i, e) = parse_exp(i)?;
+    let (i, e) = ws!(i, parse_exp)?;
     let (i, _) = char!(i, ')')?;
 
     Ok((i, BExpr::Set(n, Rc::new(e))))
+}
+
+fn parse_let(input: &str) -> nom::IResult<&str, BExpr> {
+    fn let_inner(input: &str) -> nom::IResult<&str, (String, BExpr)> {
+        let (i, _) = char!(input, '(')?;
+        let (i, ident) = ws!(i, parse_ident)?;
+        let (i, expr) = ws!(i, parse_exp)?;
+        let (i, _) = char!(i, ')')?;
+
+        Ok((i, (ident, expr)))
+    }
+
+    let (i, _) = tuple!(input, char!('('), ws!(tag!("let")), char!('('))?;
+    let (i, bindings) = many0!(i, ws!(let_inner))?;
+    let (i, (_, body, _)) = tuple!(i, char!(')'), many0!(ws!(parse_exp)), char!(')'))?;
+
+    Ok((i, BExpr::Let(bindings, body)))
 }
 
 fn parse_lam(input: &str) -> nom::IResult<&str, BExpr> {
@@ -107,6 +122,7 @@ pub fn parse_exp(input: &str) -> nom::IResult<&str, BExpr> {
             | complete!(parse_var)
             | complete!(parse_lam)
             | complete!(parse_set)
+            | complete!(parse_let)
             | complete!(parse_app)
     )
 }
