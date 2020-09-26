@@ -371,6 +371,7 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
   }
 
   DEBUG_FPRINTF(stderr, "freed %zu objects\n", num_freed);
+  DEBUG_FPRINTF(stderr, "size of heap nodes: %zu\n", gc_global_data.nodes.length);
 
 #ifdef DEBUG
   for (int i = 0; i < LAST_OBJ_TYPE; i++) {
@@ -392,13 +393,16 @@ void *gc_malloc(size_t size) {
 }
 
 void gc_heap_maintain(void) {
-  struct vector_gc_heap_nodes new_nodes =
-      vector_gc_heap_nodes_new(gc_global_data.nodes.length);
-
+  size_t last_i = 0;
+  size_t original_len = gc_global_data.nodes.length;
   for (size_t i = 0; i < gc_global_data.nodes.length; i++) {
     struct obj *obj = vector_gc_heap_nodes_index(&gc_global_data.nodes, i);
     if (obj != NULL) {
-      vector_gc_heap_nodes_push(&new_nodes, obj);
+      vector_gc_heap_nodes_set(&gc_global_data.nodes, obj, last_i++);
     }
   }
+
+  gc_global_data.nodes.length = last_i;
+  if (last_i && (original_len / last_i) > 2)
+    vector_gc_heap_nodes_shrink_to_fit(&gc_global_data.nodes);
 }

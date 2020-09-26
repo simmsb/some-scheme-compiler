@@ -76,7 +76,7 @@
     (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
 
-#ifdef DEBUG
+#ifdef DEBUG_TOUCH
 #define TOUCH_OBJECT(OBJ, S)                                                   \
   do {                                                                         \
     fprintf(stderr,                                                            \
@@ -90,7 +90,7 @@
 #define TOUCH_OBJECT(OBJ, S)                                                   \
   do {                                                                         \
   } while (0)
-#endif // DEBUG
+#endif // DEBUG_TOUCH
 
 enum __attribute__((__packed__)) closure_size {
   CLOSURE_ONE = 0,
