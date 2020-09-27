@@ -1,6 +1,6 @@
 (define c (cons 1 (cons 2 3)))
 
-(println (car c))
-(println (cdr c))
-(println (car (cdr c)))
-(println (cdr (cdr c)))
+(display (car c))
+(display (cdr c))
+(display (car (cdr c)))
+(display (cdr (cdr c)))

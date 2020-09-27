@@ -68,7 +68,7 @@ void to_string_k(struct obj *v, struct obj *k, struct env_obj *env) {
   __builtin_unreachable();
 }
 
-void println_k(struct obj *v, struct obj *k, struct env_obj *env) {
+void display_k(struct obj *v, struct obj *k, struct env_obj *env) {
   char *res = obj_to_string_internal(v);
 
   printf("%s\n", res);

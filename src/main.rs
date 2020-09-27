@@ -67,11 +67,11 @@ fn main() -> Result<(), Error> {
         buf
     };
 
-    let body = match parse::parse_body(&input_exp) {
-        Ok((_, body)) => body,
-        Err(e) => {
-            eprintln!("Error parsing input: {}", e);
-            return Err(failure::err_msg("parse fail"));
+    let body = match parse::parse(&input_exp) {
+        Ok(body) => body,
+        Err(err) => {
+            println!("{}", err);
+            return Ok(())
         }
     };
 

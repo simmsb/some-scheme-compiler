@@ -1,0 +1,51 @@
+number = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
+
+string_inner_char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+string_inner = @{ string_inner_char* }
+quoted_string = ${ "\"" ~ string_inner ~ "\"" }
+
+identifier = @{ (!(" " | "(" | ")" | NEWLINE | "\"" | "'") ~ ANY)+ }
+
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+
+variable = { identifier }
+
+null = { "null" }
+
+builtin = { "tostring" | "display"
+    | "+" | "-" | "*" | "/"
+    | "^" | "cons?" | "cons"
+    | "null?" | "car" | "cdr"
+    | "string-concat"
+}
+
+if_form = { "(" ~ "if" ~ expr ~ expr ~ expr? ~ ")" }
+
+set_form = { "(" ~ "set!" ~ variable ~ expr ~ ")" }
+
+define_form = { "(" ~ "define" ~ variable ~ expr ~ ")" }
+
+let_binder = { variable ~ expr }
+let_bindings = { ( "(" ~ let_binder ~ ")" )* }
+let_form = { "(" ~ "let" ~ "(" ~ let_bindings ~ ")" ~ body ~ ")" }
+
+lambda_bindings = { variable* }
+lambda_form = { "(" ~ "lambda" ~ "(" ~ lambda_bindings ~ ")" ~ body ~ ")" }
+
+body = { ((define_form+ ~ expr) | expr)+ }
+
+bad_app_expr = _{ "if" | "set!" | "define" | "let" | "lambda" }
+app = { "(" ~ !bad_app_expr ~ expr ~ expr* ~ ")" }
+
+literal = { number | quoted_string | null }
+
+expr = { literal | builtin | variable
+    | if_form | set_form
+    | let_form | lambda_form | app
+}
+
+program = _{ SOI ~ body ~ EOI }

@@ -287,7 +287,7 @@ fn builtin_ident_codegen(
 ) -> CExpr<'static> {
     let (num_params, runtime_name) = match ident {
         "tostring" => (2, "to_string_k"), // these are two-param because they take the cont param
-        "println" => (2, "println_k"),
+        "display" => (2, "display_k"),
         "exit" => (1, "exit_k"),
         "+" => (2, "add_k"),
         "-" => (2, "sub_k"),

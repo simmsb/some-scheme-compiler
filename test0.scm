@@ -1,3 +1,3 @@
 ((lambda ()
-   (println "hello world")
-   (println (+ 4 2))))
+   (display "hello world")
+   (display (+ 4 2))))

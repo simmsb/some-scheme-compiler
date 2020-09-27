@@ -67,16 +67,20 @@ impl BExpr {
                             allocator
                                 .text(n.to_owned())
                                 .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
-                                .append(allocator.line())
+                                .append(allocator.space())
                                 .append(e.pretty(allocator))
                                 .group()
                                 .parens()
                         }),
-                        allocator.line(),
+                        allocator.space(),
                     )
                     .parens();
 
-                bindings_pret
+                allocator
+                    .text("let")
+                    .annotate(ColorSpec::new().set_fg(Some(Color::Magenta)).clone())
+                    .append(allocator.space())
+                    .append(bindings_pret)
                     .append(allocator.line())
                     .append(body.pretty(allocator))
                     .nest(1)

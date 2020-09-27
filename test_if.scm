@@ -1,17 +1,17 @@
 (if 1
-  (println "good")
-  (println "bad"))
+  (display "good")
+  (display "bad"))
 
 (if (- 1 1)
- (println "bad")
- (println "good"))
+ (display "bad")
+ (display "good"))
 
 (if ((lambda () 1))
- (println "good")
- (println "bad"))
+ (display "good")
+ (display "bad"))
 
 (if 0
- (println "bad"))
+ (display "bad"))
 
 (if 1
- (println "good"))
+ (display "good"))

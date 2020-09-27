@@ -2,11 +2,8 @@
             (let ((ii (- i 1)))
              (if ii
                 (let ()
-                  (println ii)
-                  (go ii)
-                 )
-              ))
-            ))
+                  (display ii)
+                  (go ii))))))
 
 (go 10)
 
@@ -17,12 +14,9 @@
 (let ((box-fns (make-box 1)))
   (let ((get (car box-fns)))
    (let ((set (cdr box-fns)))
-    (println (get))
+    (display (get))
     (set 23)
-    (println (get)))))
+    (display (get)))))
 
-(println "hi")
-(println (tostring 1))
-
-(println (^ 1 2))
-(println (string-concat "a" "b"))
+(display (^ 1 2))
+(display (string-concat "a" "b"))

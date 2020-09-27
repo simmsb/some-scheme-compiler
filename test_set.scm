@@ -1,5 +1,5 @@
 ((lambda (a)
-   (println a)
+   (display a)
    (set! a 2)
-   (println a)
+   (display a)
   ) 0)

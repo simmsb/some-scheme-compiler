@@ -1,196 +1,133 @@
-use nom::character::complete::multispace0;
-use nom::complete;
-use nom::many1;
-use nom::tuple;
-use nom::{alt, char};
-use nom::{delimited, escaped, is_not, map, map_res};
-use nom::{many0, one_of, opt, pair, tag, take_while1};
 use std::rc::Rc;
 
-use crate::base_expr::BExpr;
-use crate::base_expr::BExprBody;
-use crate::base_expr::BExprBodyExpr;
+use pest::{Parser, error::Error};
+use pest_derive::Parser;
+use crate::base_expr::{BExprBody, BExpr, BExprBodyExpr};
 use crate::literals::Literal;
 
-fn ident_char(chr: char) -> bool {
-    !" ()\n\r\"\'".contains(chr)
+#[derive(Parser)]
+#[grammar = "grammar.pest"]
+pub struct SchemeParser;
+
+pub fn parse(s: &str) -> Result<BExprBody, Error<Rule>> {
+    let mut pairs = SchemeParser::parse(Rule::program, s)?;
+
+    let body = pairs.next().unwrap();
+    Ok(build_body_from_expr(body))
 }
 
-macro_rules! ws {
-    ($i:expr, $($args:tt)*) => {
-        delimited!($i, multispace0, $($args)*, multispace0)
-    };
+fn build_bexpr_from_expr(pair: pest::iterators::Pair<Rule>) -> BExpr {
+    match pair.as_rule() {
+        Rule::expr => build_bexpr_from_expr(pair.into_inner().next().unwrap()),
+        Rule::literal => BExpr::Lit(build_literal_from_expr(pair.into_inner().next().unwrap())),
+        Rule::builtin => BExpr::BuiltinIdent(pair.as_str().to_owned()),
+        Rule::if_form => build_if_from_expr(pair),
+        Rule::set_form => build_set_from_expr(pair),
+        Rule::let_form => build_let_from_expr(pair),
+        Rule::lambda_form => build_lambda_from_expr(pair),
+        Rule::app => build_app_from_expr(pair),
+        Rule::variable => BExpr::Var(pair.as_str().to_owned()),
+        e => unreachable!("{:?}", e),
+    }
 }
 
-pub fn parse_int(input: &str) -> nom::IResult<&str, BExpr> {
-    map_res!(
-        input,
-        pair!(opt!(char!('-')), take_while1!(|c: char| c.is_digit(10))),
-        |(sign, num): (Option<char>, &str)| num
-            .parse::<i64>()
-            .map(|n| if sign.is_some() { -n } else { n })
-            .map(|n| BExpr::Lit(Literal::Int(n)))
-    )
+fn build_if_from_expr(pair: pest::iterators::Pair<Rule>) -> BExpr {
+    let mut pair = pair.into_inner();
+    let cond = pair.next().unwrap();
+    let cond = build_bexpr_from_expr(cond);
+    let ift = pair.next().unwrap();
+    let ift = build_bexpr_from_expr(ift);
+    let iff = pair.next().map(build_bexpr_from_expr)
+                         .unwrap_or(BExpr::Lit(Literal::Void));
+    BExpr::If(Rc::new(cond), Rc::new(ift), Rc::new(iff))
 }
 
-pub fn parse_ident(input: &str) -> nom::IResult<&str, String> {
-    map!(input, take_while1!(ident_char), String::from)
+fn build_set_from_expr(pair: pest::iterators::Pair<Rule>) -> BExpr {
+    let mut pair = pair.into_inner();
+    let name = pair.next().unwrap().as_str().to_owned();
+    let expr = pair.next().unwrap();
+    let expr = build_bexpr_from_expr(expr);
+
+    BExpr::Set(name, Rc::new(expr))
 }
 
-pub fn parse_var(input: &str) -> nom::IResult<&str, BExpr> {
-    map!(input, ws!(parse_ident), BExpr::Var)
-}
-
-pub fn parse_builtin(input: &str) -> nom::IResult<&str, BExpr> {
-    let builtin_names = [
-        "tostring",
-        "println",
-        "+",
-        "-",
-        "*",
-        "/",
-        "^",
-        "cons?",
-        "cons",
-        "null?",
-        "car",
-        "cdr",
-        "string-concat",
-    ];
-
-    for &name in &builtin_names {
-        if let Ok((i, _n)) =
-            nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>(name)(input)
-        {
-            return Ok((i, BExpr::BuiltinIdent(name.to_owned())));
+fn build_bodyexpr_from_expr(pair: pest::iterators::Pair<Rule>) -> BExprBodyExpr {
+    match pair.as_rule() {
+        Rule::define_form => {
+            build_bexprbodyexpr_from_define(pair)
         }
-    }
-
-    if let Ok((i, _n)) =
-        nom::bytes::complete::tag::<_, _, (_, nom::error::ErrorKind)>("null")(input)
-    {
-        return Ok((i, BExpr::Lit(Literal::Void)));
-    }
-
-    Err(nom::Err::Error((input, nom::error::ErrorKind::Tag)))
-}
-
-pub fn parse_str(input: &str) -> nom::IResult<&str, BExpr> {
-    alt!(
-        input,
-        complete!(map!(
-            delimited!(
-                tag!("\""),
-                escaped!(is_not!("\""), '\\', one_of!("\"n\\")),
-                tag!("\"")
-            ),
-            |s| BExpr::Lit(Literal::String(s.to_owned()))
-        )) | complete!(map!(tag!("\"\""), |_| BExpr::Lit(Literal::String(
-            "".to_owned()
-        ))))
-    )
-}
-
-fn parse_if(input: &str) -> nom::IResult<&str, BExpr> {
-    let (i, _) = pair!(input, char!('('), ws!(tag!("if")))?;
-    let (i, cond) = ws!(i, parse_exp)?;
-    let (i, ift) = ws!(i, parse_exp)?;
-    let (i, iff) = opt!(i, ws!(parse_exp))?;
-    let (i, _) = char!(i, ')')?;
-
-    Ok((
-        i,
-        BExpr::If(
-            Rc::new(cond),
-            Rc::new(ift),
-            Rc::new(iff.unwrap_or(BExpr::Lit(Literal::Void))),
-        ),
-    ))
-}
-
-fn parse_set(input: &str) -> nom::IResult<&str, BExpr> {
-    let (i, _) = pair!(input, char!('('), ws!(tag!("set!")))?;
-    let (i, n) = ws!(i, parse_ident)?;
-    let (i, e) = ws!(i, parse_exp)?;
-    let (i, _) = char!(i, ')')?;
-
-    Ok((i, BExpr::Set(n, Rc::new(e))))
-}
-
-fn parse_define(input: &str) -> nom::IResult<&str, BExprBodyExpr> {
-    let (i, _) = pair!(input, char!('('), ws!(tag!("define")))?;
-    let (i, ident) = ws!(i, parse_ident)?;
-    let (i, expr) = ws!(i, parse_exp)?;
-    let (i, _) = char!(i, ')')?;
-
-    Ok((i, BExprBodyExpr::Def(ident, expr)))
-}
-
-pub fn parse_body(input: &str) -> nom::IResult<&str, BExprBody> {
-    fn inner(input: &str) -> nom::IResult<&str, BExprBodyExpr> {
-        alt!(
-            input,
-            complete!(parse_define) | complete!(map!(parse_exp, BExprBodyExpr::Expr))
-        )
-    }
-
-    let (i, mut body) = many1!(input, ws!(inner))?;
-
-    let last = match body.pop().unwrap() {
-        BExprBodyExpr::Def(_, _) => {
-            return Err(nom::Err::Error((input, nom::error::ErrorKind::Many1)))
+        Rule::expr => {
+            BExprBodyExpr::Expr(build_bexpr_from_expr(pair))
         }
-        BExprBodyExpr::Expr(e) => e,
-    };
-
-    Ok((i, BExprBody(body, Rc::new(last))))
-}
-
-fn parse_let(input: &str) -> nom::IResult<&str, BExpr> {
-    fn let_inner(input: &str) -> nom::IResult<&str, (String, BExpr)> {
-        let (i, _) = char!(input, '(')?;
-        let (i, ident) = ws!(i, parse_ident)?;
-        let (i, expr) = ws!(i, parse_exp)?;
-        let (i, _) = char!(i, ')')?;
-
-        Ok((i, (ident, expr)))
+        r => unreachable!("{:?}", r),
     }
-
-    let (i, _) = tuple!(input, char!('('), ws!(tag!("let")), char!('('))?;
-    let (i, bindings) = many0!(i, ws!(let_inner))?;
-    let (i, (_, body, _)) = tuple!(i, char!(')'), ws!(parse_body), char!(')'))?;
-
-    Ok((i, BExpr::Let(bindings, body)))
 }
 
-fn parse_lam(input: &str) -> nom::IResult<&str, BExpr> {
-    let (i, _) = pair!(input, char!('('), ws!(tag!("lambda")))?;
-    let (i, plist) = delimited!(i, char!('('), many0!(ws!(parse_ident)), char!(')'))?;
-    let (i, body) = ws!(i, parse_body)?;
-    let (i, _) = char!(i, ')')?;
-
-    Ok((i, BExpr::Lam(plist, body)))
+fn build_body_from_expr(pair: pest::iterators::Pair<Rule>) -> BExprBody {
+    let pair = pair.into_inner();
+    let mut things = pair.map(build_bodyexpr_from_expr).collect::<Vec<_>>();
+    let last = things.pop().unwrap();
+    if let BExprBodyExpr::Expr(e) = last {
+        BExprBody(things, Rc::new(e))
+    } else {
+        unreachable!()  // grammar should prevent this
+    }
 }
 
-pub fn parse_app(input: &str) -> nom::IResult<&str, BExpr> {
-    let (i, _) = char!(input, '(')?;
-    let (i, (function, params)) = pair!(i, parse_exp, many0!(ws!(parse_exp)))?;
-    let (i, _) = char!(i, ')')?;
+fn build_let_from_expr(pair: pest::iterators::Pair<Rule>) -> BExpr {
+    let mut pair = pair.into_inner();
+    let bindings = pair.next().unwrap().into_inner();
+    let bindings = bindings.map(|pair| {
+        let mut pair = pair.into_inner();
+        let name = pair.next().unwrap().as_str().to_owned();
+        let expr = pair.next().unwrap();
+        let expr = build_bexpr_from_expr(expr);
 
-    Ok((i, BExpr::App(Rc::new(function), params)))
+        (name, expr)
+    }).collect::<Vec<_>>();
+
+    let body = pair.next().unwrap();
+    let body = build_body_from_expr(body);
+
+    BExpr::Let(bindings, body)
 }
 
-pub fn parse_exp(input: &str) -> nom::IResult<&str, BExpr> {
-    alt!(
-        input,
-        complete!(parse_int)
-            | complete!(parse_str)
-            | complete!(parse_builtin)
-            | complete!(parse_var)
-            | complete!(parse_lam)
-            | complete!(parse_set)
-            | complete!(parse_let)
-            | complete!(parse_if)
-            | complete!(parse_app)
-    )
+fn build_lambda_from_expr(pair: pest::iterators::Pair<Rule>) -> BExpr {
+    let mut pair = pair.into_inner();
+    let bindings = pair.next().unwrap().into_inner()
+                                       .map(|pair| pair.as_str().to_owned())
+                                       .collect::<Vec<_>>();
+    let body = pair.next().unwrap();
+    let body = build_body_from_expr(body);
+
+    BExpr::Lam(bindings, body)
+}
+
+fn build_app_from_expr(pair: pest::iterators::Pair<Rule>) -> BExpr {
+    let mut pair = pair.into_inner();
+    let function = pair.next().unwrap();
+    let function = build_bexpr_from_expr(function);
+
+    let params = pair.map(build_bexpr_from_expr)
+                     .collect::<Vec<_>>();
+
+    BExpr::App(Rc::new(function), params)
+}
+
+fn build_literal_from_expr(pair: pest::iterators::Pair<Rule>) -> Literal {
+    match pair.as_rule() {
+        Rule::number => Literal::Int(pair.as_str().parse().unwrap()),
+        Rule::quoted_string => Literal::String(pair.into_inner().next().unwrap().as_str().to_owned()),
+        Rule::null => Literal::Void,
+        _ => unreachable!(),
+    }
+}
+
+fn build_bexprbodyexpr_from_define(pair: pest::iterators::Pair<Rule>) -> BExprBodyExpr {
+    let mut pair = pair.into_inner();
+    let name = pair.next().unwrap().as_str().to_owned();
+    let expr = pair.next().unwrap();
+    let expr = build_bexpr_from_expr(expr);
+
+    BExprBodyExpr::Def(name, expr)
 }
