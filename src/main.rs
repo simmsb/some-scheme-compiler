@@ -35,22 +35,34 @@ use termcolor::StandardStream;
 
 const RUNTIME_DIR: Dir<'_> = include_dir!("src/core");
 
+
+#[derive(StructOpt, Debug)]
+enum Cmd {
+    /// Run the progam
+    Run,
+    /// Compile the program
+    Compile {
+        #[structopt(
+            short = "o",
+            long = "output",
+            parse(from_os_str),
+            default_value = "a.out"
+        )]
+        output: PathBuf,
+    }
+}
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "somescheme")]
 struct Opt {
-    #[structopt(short = "d", long = "debug")]
-    debug: bool,
-
-    #[structopt(
-        short = "o",
-        long = "output",
-        parse(from_os_str),
-        default_value = "a.out"
-    )]
-    output: PathBuf,
+    #[structopt(subcommand)]
+    cmd: Cmd,
 
     #[structopt(short = "i", long = "input", parse(from_os_str))]
     input: Option<PathBuf>,
+
+    #[structopt(short = "d", long = "debug")]
+    debug: bool,
 
     #[structopt(short = "k", long = "keep-tmp")]
     keep_tmpdir: bool,
@@ -126,7 +138,13 @@ fn main() -> Result<(), Error> {
         eprintln!("{}", make_stdout);
     }
 
-    copy_binary(&build_dir, &opts.output);
+    if let Cmd::Compile { output } = &opts.cmd {
+        copy_binary(&build_dir, output);
+    } else {
+        Command::new(build_dir.path().join("compiled_result"))
+            .status()
+            .expect("Failed to run?");
+    }
 
     if !opts.keep_tmpdir {
         build_dir.close()?;
