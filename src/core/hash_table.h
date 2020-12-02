@@ -21,17 +21,18 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     if (hash_table_##NAME##_iter_e->hash &&                                    \
         !hash_table_##NAME##_is_entry_deleted((TABLE),                         \
                                               hash_table_##NAME##_iter_idx)) { \
-      size_t KEY_NAME = hash_table_##NAME##_iter_e->key;                       \
+      typeof(hash_table_##NAME##_iter_e->key) *KEY_NAME =                      \
+          &hash_table_##NAME##_iter_e->key;                                    \
       typeof(hash_table_##NAME##_iter_e->val) *VAL_NAME =                      \
           &hash_table_##NAME##_iter_e->val;                                    \
       { __VA_ARGS__ }                                                          \
     }                                                                          \
   }
 
-#define DEFINE_HASH(VALTYPE, NAME)                                             \
+#define DEFINE_HASH(KEYTYPE, VALTYPE, NAME)                                    \
   struct hash_table_##NAME##_elem {                                            \
     size_t hash;                                                               \
-    size_t key;                                                                \
+    KEYTYPE key;                                                               \
     VALTYPE val;                                                               \
   };                                                                           \
                                                                                \
@@ -45,16 +46,16 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
   };                                                                           \
   struct hash_table_##NAME *hash_table_##NAME##_new();                         \
   void hash_table_##NAME##_free(struct hash_table_##NAME *table);              \
-  void hash_table_##NAME##_insert(struct hash_table_##NAME *table, size_t k,   \
+  void hash_table_##NAME##_insert(struct hash_table_##NAME *table, KEYTYPE k,  \
                                   VALTYPE v);                                  \
   VALTYPE *hash_table_##NAME##_lookup(struct hash_table_##NAME *table,         \
-                                      size_t k);                               \
-  bool hash_table_##NAME##_delete(struct hash_table_##NAME *table, size_t k);  \
+                                      KEYTYPE k);                              \
+  bool hash_table_##NAME##_delete(struct hash_table_##NAME *table, KEYTYPE k); \
   bool hash_table_##NAME##_is_entry_deleted(struct hash_table_##NAME *table,   \
                                             size_t idx);                       \
   void hash_table_##NAME##_clear(struct hash_table_##NAME *table);
 
-#define MAKE_HASH(VALTYPE, NAME)                                               \
+#define MAKE_HASH(KEYTYPE, VALTYPE, HASH_FUN, EQ_FUN, NAME)                    \
   bool hash_table_##NAME##_is_entry_deleted(struct hash_table_##NAME *table,   \
                                             size_t idx) {                      \
     return get_bit_in_bitarray(table->deleted, idx);                           \
@@ -68,14 +69,6 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
   static void hash_table_##NAME##__reset_deleted(                              \
       struct hash_table_##NAME *table, size_t idx) {                           \
     set_bit_in_bitarray(table->deleted, idx, false);                           \
-  }                                                                            \
-                                                                               \
-  static size_t hash_table_##NAME##__hash_fun(size_t k) {                      \
-    k = ((k >> 30) ^ k) * 0xbf58476d1ce4e5b9;                                  \
-    k = ((k >> 27) ^ k) * 0xbf58476d1ce4e5b9;                                  \
-    k = (k >> 31) ^ k;                                                         \
-                                                                               \
-    return k;                                                                  \
   }                                                                            \
                                                                                \
   static size_t hash_table_##NAME##__fix_hash(size_t h) {                      \
@@ -148,9 +141,8 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
   }                                                                            \
                                                                                \
   static int64_t hash_table_##NAME##__lookup(struct hash_table_##NAME *table,  \
-                                             size_t k) {                       \
-    size_t hash =                                                              \
-        hash_table_##NAME##__fix_hash(hash_table_##NAME##__hash_fun(k));       \
+                                             KEYTYPE k) {                      \
+    size_t hash = hash_table_##NAME##__fix_hash(HASH_FUN(k));                  \
     size_t idx = hash_table_##NAME##__hash_idx(table, hash);                   \
                                                                                \
     size_t num_probes = 0;                                                     \
@@ -173,7 +165,7 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
                                                                                \
       /* current element isn't deleted, and both the hash and keys match  */   \
       if (!hash_table_##NAME##_is_entry_deleted(table, idx) &&                 \
-          current_hash == hash && table->elems[idx].key == k) {                \
+          current_hash == hash && EQ_FUN(table->elems[idx].key, k)) {          \
         return idx;                                                            \
       }                                                                        \
                                                                                \
@@ -225,10 +217,9 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     free(table->deleted);                                                      \
   }                                                                            \
                                                                                \
-  void hash_table_##NAME##_insert(struct hash_table_##NAME *table, size_t k,   \
+  void hash_table_##NAME##_insert(struct hash_table_##NAME *table, KEYTYPE k,  \
                                   VALTYPE v) {                                 \
-    size_t hash =                                                              \
-        hash_table_##NAME##__fix_hash(hash_table_##NAME##__hash_fun(k));       \
+    size_t hash = hash_table_##NAME##__fix_hash(HASH_FUN(k));                  \
                                                                                \
     /* printf("num_elems: %d, resize_thresh: %d\n", table->num_elems,          \
      * table->resize_thresh); */                                               \
@@ -245,7 +236,7 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
   }                                                                            \
                                                                                \
   VALTYPE *hash_table_##NAME##_lookup(struct hash_table_##NAME *table,         \
-                                      size_t k) {                              \
+                                      KEYTYPE k) {                             \
     int64_t idx = hash_table_##NAME##__lookup(table, k);                       \
                                                                                \
     if (idx < 0) {                                                             \
@@ -254,7 +245,8 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     return &table->elems[idx].val;                                             \
   }                                                                            \
                                                                                \
-  bool hash_table_##NAME##_delete(struct hash_table_##NAME *table, size_t k) { \
+  bool hash_table_##NAME##_delete(struct hash_table_##NAME *table,             \
+                                  KEYTYPE k) {                                 \
     int64_t idx = hash_table_##NAME##__lookup(table, k);                       \
                                                                                \
     if (idx < 0) {                                                             \
@@ -271,5 +263,13 @@ static const uint8_t hash_table_load_factor_to_grow = 90;
     memset(table->deleted, 0, table->cap / 8);                                 \
     table->num_elems = 0;                                                      \
   }
+
+static size_t hash_table_default_size_t_hash_fun(size_t k) {
+  k = ((k >> 30) ^ k) * 0xbf58476d1ce4e5b9;
+  k = ((k >> 27) ^ k) * 0xbf58476d1ce4e5b9;
+  k = (k >> 31) ^ k;
+
+  return k;
+}
 
 #endif // __HASH_H_

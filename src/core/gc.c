@@ -13,7 +13,11 @@ MAKE_VECTOR(struct obj *, gc_heap_nodes);
 MAKE_VECTOR(size_t, size_t);
 MAKE_QUEUE(struct obj *, gc_grey_nodes);
 MAKE_QUEUE(struct ptr_toupdate_pair, ptr_toupdate_pair);
-MAKE_HASH(struct obj *, ptr_map);
+
+bool size_t_eq(size_t a, size_t b) { return a == b; }
+
+MAKE_HASH(size_t, struct obj *, hash_table_default_size_t_hash_fun, size_t_eq,
+          ptr_map);
 
 static struct gc_data gc_global_data;
 
@@ -28,6 +32,9 @@ static struct gc_funcs gc_func_map[] = {
     [OBJ_CELL] = (struct gc_funcs){.toheap = toheap_cell,
                                    .mark = mark_cell,
                                    .free = gc_free_noop},
+    [OBJ_CONS] = (struct gc_funcs){.toheap = toheap_cons,
+                                   .mark = mark_cons,
+                                   .free = gc_free_noop},
     [OBJ_INT] = (struct gc_funcs){.toheap = toheap_int_obj,
                                   .mark = gc_mark_noop,
                                   .free = gc_free_noop},
@@ -37,6 +44,9 @@ static struct gc_funcs gc_func_map[] = {
             .mark = gc_mark_noop,
             .free = gc_free_noop,
         },
+    [OBJ_HT] = (struct gc_funcs){.toheap = toheap_ht,
+                                 .mark = mark_ht,
+                                 .free = free_ht},
 };
 
 // This does nothing, the gc will call free() on the object if it was heap
@@ -64,6 +74,86 @@ static bool maybe_mark_grey_and_queue(struct gc_context *ctx, struct obj *obj) {
     obj->mark = GREY;
     queue_gc_grey_nodes_enqueue(&ctx->grey_nodes, obj);
     return true;
+  }
+}
+
+struct obj *toheap_ht(struct obj *ht_obj, struct gc_context *ctx) {
+  struct ht_obj *ht = (struct ht_obj *)ht_obj;
+
+  if (ht->base.on_stack) {
+    TOUCH_OBJECT(ht, "toheap_ht");
+    struct ht_obj *heap_ht = gc_malloc(sizeof(struct ht_obj));
+    *heap_ht = *ht;
+    ht = heap_ht;
+  }
+
+  HASH_TABLE_ITER(obj, key, val, ht->ht, {
+    if (*key) {
+      struct ptr_toupdate_pair pk = {.toupdate = (struct obj **)key,
+                                     .on_stack = (struct obj *)*key};
+      queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, pk);
+    }
+    if (*val) {
+      struct ptr_toupdate_pair pv = {.toupdate = (struct obj **)val,
+                                     .on_stack = (struct obj *)*val};
+      queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, pv);
+    }
+  });
+
+  return (struct obj *)ht;
+}
+
+void mark_ht(struct obj *ht_obj, struct gc_context *ctx) {
+  struct ht_obj *ht = (struct ht_obj *)ht_obj;
+
+  HASH_TABLE_ITER(obj, key, val, ht->ht, {
+    if (*key)
+      maybe_mark_grey_and_queue(ctx, *key);
+    if (*val)
+      maybe_mark_grey_and_queue(ctx, *val);
+  });
+}
+
+void free_ht(struct obj *ht_obj) {
+  struct ht_obj *ht = (struct ht_obj *)ht_obj;
+
+  hash_table_obj_free(ht->ht);
+}
+
+struct obj *toheap_cons(struct obj *cons_obj, struct gc_context *ctx) {
+  struct cons_obj *cons = (struct cons_obj *)cons_obj;
+
+  if (cons->base.on_stack) {
+    TOUCH_OBJECT(cons, "toheap_cons");
+    struct cons_obj *heap_cons = gc_malloc(sizeof(struct cons_obj));
+    *heap_cons = *cons;
+    cons = heap_cons;
+  }
+
+  if (cons->car) {
+    struct ptr_toupdate_pair p = {.toupdate = (struct obj **)&cons->car,
+                                  .on_stack = (struct obj *)cons->car};
+    queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, p);
+  }
+
+  if (cons->cdr) {
+    struct ptr_toupdate_pair p = {.toupdate = (struct obj **)&cons->cdr,
+                                  .on_stack = (struct obj *)cons->cdr};
+    queue_ptr_toupdate_pair_enqueue(&ctx->pointers_toupdate, p);
+  }
+
+  return (struct obj *)cons;
+}
+
+void mark_cons(struct obj *cons_obj, struct gc_context *ctx) {
+  struct cons_obj *cons = (struct cons_obj *)cons_obj;
+
+  if (cons->car) {
+    maybe_mark_grey_and_queue(ctx, cons->car);
+  }
+
+  if (cons->cdr) {
+    maybe_mark_grey_and_queue(ctx, cons->cdr);
   }
 }
 
@@ -371,7 +461,8 @@ void gc_major(struct gc_context *ctx, struct thunk *thnk) {
   }
 
   DEBUG_FPRINTF(stderr, "freed %zu objects\n", num_freed);
-  DEBUG_FPRINTF(stderr, "size of heap nodes: %zu\n", gc_global_data.nodes.length);
+  DEBUG_FPRINTF(stderr, "size of heap nodes: %zu\n",
+                gc_global_data.nodes.length);
 
 #ifdef DEBUG
   for (int i = 0; i < LAST_OBJ_TYPE; i++) {

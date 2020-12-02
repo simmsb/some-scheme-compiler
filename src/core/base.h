@@ -6,6 +6,7 @@
 
 #include "common.h"
 #include "vec.h"
+#include "hash_table.h"
 
 #define NUM_ARGS(...) (sizeof((size_t[]){__VA_ARGS__}) / sizeof(size_t))
 
@@ -76,6 +77,9 @@
     (NAME) = (struct obj *)new_obj;                                            \
   } while (0)
 
+#define OBJECT_HT_OBJ_NEW(NAME)                 \
+  struct
+
 #ifdef DEBUG_TOUCH
 #define TOUCH_OBJECT(OBJ, S)                                                   \
   do {                                                                         \
@@ -104,9 +108,10 @@ enum __attribute__((__packed__)) object_tag {
   OBJ_STR,
   OBJ_CONS,
   OBJ_CELL,
+  OBJ_HT,
 };
 
-#define LAST_OBJ_TYPE OBJ_CELL
+#define LAST_OBJ_TYPE OBJ_HT
 
 enum __attribute__((__packed__)) gc_mark_type { WHITE = 0, GREY, BLACK };
 
@@ -159,6 +164,14 @@ struct string_obj {
   const char buf[];
 };
 
+
+DEFINE_HASH(struct obj *, struct obj *, obj);
+
+struct ht_obj {
+  struct obj base;
+  struct hash_table_obj *ht;
+};
+
 struct thunk {
   struct closure_obj *closr;
   union {
@@ -186,5 +199,6 @@ struct closure_obj object_closure_two_new(void (*)(struct obj *, struct obj *,
                                           struct env_obj *);
 struct int_obj object_int_obj_new(int64_t);
 struct cons_obj object_cons_obj_new(struct obj *, struct obj *);
+struct ht_obj object_ht_obj_new(void);
 
 #endif /* SOMESCHEME_H */

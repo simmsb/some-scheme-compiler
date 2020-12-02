@@ -9,7 +9,7 @@
 DEFINE_VECTOR(size_t, size_t);
 DEFINE_VECTOR(struct obj *, gc_heap_nodes);
 DEFINE_QUEUE(struct obj *, gc_grey_nodes);
-DEFINE_HASH(struct obj *, ptr_map);
+DEFINE_HASH(size_t, struct obj *, ptr_map);
 
 struct ptr_toupdate_pair {
   struct obj **toupdate;
@@ -71,6 +71,13 @@ struct obj *toheap_string_obj(struct obj *, struct gc_context *);
 
 struct obj *toheap_cell(struct obj *, struct gc_context *);
 void mark_cell(struct obj *, struct gc_context *);
+
+struct obj *toheap_cons(struct obj *, struct gc_context *);
+void mark_cons(struct obj *, struct gc_context *);
+
+struct obj *toheap_ht(struct obj *, struct gc_context *);
+void mark_ht(struct obj *, struct gc_context *);
+void free_ht(struct obj *);
 
 struct gc_context gc_make_context(void);
 

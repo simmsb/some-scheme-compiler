@@ -20,7 +20,9 @@ builtin = { "tostring" | "display"
     | "+" | "-" | "*" | "/"
     | "^" | "cons?" | "cons"
     | "null?" | "car" | "cdr"
-    | "string-concat"
+    | "string-concat" | "ht-new"
+    | "ht-set!" | "ht-del!" | "ht-keys"
+    | "ht-get"
 }
 
 if_form = { "(" ~ "if" ~ expr ~ expr ~ expr? ~ ")" }

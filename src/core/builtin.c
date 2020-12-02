@@ -1,6 +1,8 @@
+#include <stdbool.h>
 #include "builtin.h"
 #include "base.h"
 #include "common.h"
+#include "gc.h"
 
 #define MAKE_INT_BINOP(NAME, OP)                                               \
   struct int_obj object_int_obj_##NAME(struct obj *lhs, struct obj *rhs) {     \
@@ -49,6 +51,9 @@ char *obj_to_string_internal(struct obj *val) {
     break;
   case OBJ_CELL:
     return obj_to_string_internal(((struct cell_obj *)val)->val);
+  case OBJ_HT:
+    ALLOC_SPRINTF(res, "hash table");
+    break;
   default:
     RUNTIME_ERROR("Unexpected object tag to to_string: %d", val->tag);
   }
@@ -172,3 +177,58 @@ void string_concat_k_2(struct obj *v, struct obj *k, struct env_obj *env) {
 
   __builtin_unreachable();
 }
+
+struct ht_obj ht_new_inner(struct obj *always_void) {
+  return object_ht_obj_new();
+}
+
+MAKE_ONE_ARG_FROM_BUILTIN(ht_new, ht_new_inner, struct ht_obj);
+
+struct obj *ht_set_inner(struct obj *ht_obj, struct obj *k, struct obj *v) {
+  struct ht_obj *ht = (struct ht_obj *)ht_obj;
+
+  hash_table_obj_insert(ht->ht, k, v);
+
+  return NULL;
+}
+
+MAKE_THREE_ARG_FROM_BUILTIN_EXPLICIT_RETURN(ht_set, ht_set_inner);
+
+struct int_obj ht_del_inner(struct obj *ht_obj, struct obj *k) {
+  struct ht_obj *ht = (struct ht_obj *)ht_obj;
+
+  bool ret = hash_table_obj_delete(ht->ht, k);
+
+  return object_int_obj_new(ret);
+}
+
+MAKE_TWO_ARG_FROM_BUILTIN(ht_del, ht_del_inner, struct int_obj);
+
+struct obj *ht_get_inner(struct obj *ht_obj, struct obj *k) {
+  struct ht_obj *ht = (struct ht_obj *)ht_obj;
+
+  struct obj **ret = hash_table_obj_lookup(ht->ht, k);
+
+  if (!ret)
+    return NULL;
+
+  return *ret;
+}
+
+MAKE_TWO_ARG_FROM_BUILTIN_EXPLICIT_RETURN(ht_get, ht_get_inner);
+
+struct obj *ht_keys_inner(struct obj *ht_obj) {
+  struct ht_obj *ht = (struct ht_obj *)ht_obj;
+  struct cons_obj *c = NULL;
+
+  HASH_TABLE_ITER(obj, key, val, ht->ht, {
+      struct cons_obj *c2 = gc_malloc(sizeof(struct cons_obj));
+      c2->car = *key;
+      c2->cdr = (struct obj *)c;
+      c = c2;
+    });
+
+  return (struct obj *)c;
+}
+
+MAKE_ONE_ARG_FROM_BUILTIN_EXPLICIT_RETURN(ht_keys, ht_keys_inner);

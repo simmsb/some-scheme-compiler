@@ -9,6 +9,7 @@
 #include "base.h"
 #include "common.h"
 #include "gc.h"
+#include "hash_table.h"
 #include "vec.h"
 
 static bool stack_check(void);
@@ -172,4 +173,130 @@ struct int_obj object_int_obj_new(int64_t val) {
 struct cons_obj object_cons_obj_new(struct obj *car, struct obj *cdr) {
   return (struct cons_obj){
       .base = object_base_new(OBJ_CONS), .car = car, .cdr = cdr};
+}
+
+static size_t hash_string(const char *buf, size_t len) {
+  size_t hash = 14695981039346656037ull;
+
+  for (size_t i = 0; i < len; i++) {
+    hash ^= (size_t)buf[i];
+    hash *= 1099511628211;
+  }
+
+  return hash;
+}
+
+static size_t hash_combine(size_t a, size_t b) {
+  size_t hash = a;
+
+  hash *= 1099511628211;
+  hash ^= b;
+  hash *= 1099511628211;
+
+  return hash;
+}
+
+size_t hash_obj_impl(struct obj *obj) {
+  if (!obj) {
+    return 0;
+  }
+
+  switch (obj->tag) {
+  case OBJ_INT:
+    return ((struct int_obj *)obj)->val;
+  case OBJ_STR: {
+    struct string_obj *str_obj = (struct string_obj *)obj;
+    return hash_string(str_obj->buf, str_obj->len);
+  }
+  case OBJ_CONS: {
+    struct cons_obj *cons_obj = (struct cons_obj *)obj;
+    size_t a = hash_obj_impl(cons_obj->car);
+    size_t b = hash_obj_impl(cons_obj->cdr);
+    return hash_combine(a, b);
+  }
+  case OBJ_HT: {
+    struct ht_obj *ht_obj = (struct ht_obj *)obj;
+    size_t hash = 14695981039346656037ull;
+
+    HASH_TABLE_ITER(obj, key, val, ht_obj->ht, {
+      hash = hash_combine(hash, hash_obj_impl(*key));
+      hash = hash_combine(hash, hash_obj_impl(*val));
+    });
+
+    return hash;
+  }
+  case OBJ_CELL:
+    return hash_obj_impl(((struct cell_obj *)obj)->val);
+  default:
+    RUNTIME_ERROR("Unhashable type: %d", obj->tag);
+  }
+}
+
+bool eq_obj_impl(struct obj *a, struct obj *b) {
+  if (!a && !b)
+    return true;
+
+  if (!a || !b)
+    return false;
+
+  if (a->tag != b->tag)
+    return false;
+
+  switch (a->tag) {
+  case OBJ_INT:
+    return ((struct int_obj *)a)->val == ((struct int_obj *)b)->val;
+  case OBJ_STR: {
+    struct string_obj *str_obj_a = (struct string_obj *)a;
+    struct string_obj *str_obj_b = (struct string_obj *)b;
+
+    if (str_obj_a->len != str_obj_b->len)
+      return false;
+
+    return strncmp(str_obj_a->buf, str_obj_b->buf, str_obj_a->len) == 0;
+  }
+  case OBJ_CONS: {
+    struct cons_obj *cons_obj_a = (struct cons_obj *)a;
+    struct cons_obj *cons_obj_b = (struct cons_obj *)b;
+    return eq_obj_impl(cons_obj_a->car, cons_obj_b->car) &&
+           eq_obj_impl(cons_obj_a->cdr, cons_obj_b->cdr);
+  }
+  case OBJ_HT: {
+    struct ht_obj *ht_obj_a = (struct ht_obj *)a;
+    struct ht_obj *ht_obj_b = (struct ht_obj *)b;
+
+    HASH_TABLE_ITER(obj, key, val, ht_obj_a->ht, {
+      typeof(*val) *b_val = hash_table_obj_lookup(ht_obj_b->ht, *key);
+
+      if (!b_val)
+        return false;
+
+      if (!eq_obj_impl(*val, *b_val))
+        return false;
+    });
+
+    HASH_TABLE_ITER(obj, key, val, ht_obj_b->ht, {
+      typeof(*val) *a_val = hash_table_obj_lookup(ht_obj_a->ht, *key);
+
+      if (!a_val)
+        return false;
+
+      // we don't need to check equality of values this time
+    });
+
+    return true;
+  }
+  case OBJ_CELL:
+    return eq_obj_impl(((struct cell_obj *)a)->val,
+                       ((struct cell_obj *)b)->val);
+  default:
+    return false;
+  }
+}
+
+MAKE_HASH(struct obj *, struct obj *, hash_obj_impl, eq_obj_impl, obj);
+
+struct ht_obj object_ht_obj_new() {
+  struct hash_table_obj *ht = hash_table_obj_new();
+
+  return (struct ht_obj){.base = object_base_new(OBJ_HT), .ht = ht};
 }

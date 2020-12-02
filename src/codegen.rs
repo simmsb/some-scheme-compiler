@@ -300,6 +300,11 @@ fn builtin_ident_codegen(
         "car" => (2, "car_k"),
         "cdr" => (2, "cdr_k"),
         "string-concat" => (2, "string_concat_k"),
+        "ht-new" => (2, "ht_new_k"),
+        "ht-set!" => (2, "ht_set_k"),
+        "ht-get" => (2, "ht_get_k"),
+        "ht-del!" => (2, "ht_del_k"),
+        "ht-keys" => (2, "ht_keys_k"),
         _ => panic!("unknown builtin: {}", ident),
     };
 
