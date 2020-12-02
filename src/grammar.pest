@@ -43,7 +43,9 @@ body = { ((define_form+ ~ expr) | expr)+ }
 bad_app_expr = _{ "if" | "set!" | "define" | "let" | "lambda" }
 app = { "(" ~ !bad_app_expr ~ expr ~ expr* ~ ")" }
 
-literal = { number | quoted_string | null }
+list_literal = { "'(" ~ expr* ~ ")" }
+
+literal = { list_literal | number | quoted_string | null }
 
 expr = { builtin | literal | variable
     | if_form | set_form

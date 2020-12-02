@@ -203,7 +203,7 @@ size_t hash_obj_impl(struct obj *obj) {
 
   switch (obj->tag) {
   case OBJ_INT:
-    return ((struct int_obj *)obj)->val;
+    return hash_table_default_size_t_hash_fun(((struct int_obj *)obj)->val);
   case OBJ_STR: {
     struct string_obj *str_obj = (struct string_obj *)obj;
     return hash_string(str_obj->buf, str_obj->len);
