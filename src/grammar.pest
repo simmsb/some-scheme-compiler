@@ -45,7 +45,7 @@ app = { "(" ~ !bad_app_expr ~ expr ~ expr* ~ ")" }
 
 literal = { number | quoted_string | null }
 
-expr = { literal | builtin | variable
+expr = { builtin | literal | variable
     | if_form | set_form
     | let_form | lambda_form | app
 }
