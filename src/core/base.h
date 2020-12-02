@@ -201,4 +201,6 @@ struct int_obj object_int_obj_new(int64_t);
 struct cons_obj object_cons_obj_new(struct obj *, struct obj *);
 struct ht_obj object_ht_obj_new(void);
 
+bool eq_obj_impl(struct obj *, struct obj *);
+
 #endif /* SOMESCHEME_H */

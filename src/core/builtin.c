@@ -1,8 +1,8 @@
-#include <stdbool.h>
 #include "builtin.h"
 #include "base.h"
 #include "common.h"
 #include "gc.h"
+#include <stdbool.h>
 
 #define MAKE_INT_BINOP(NAME, OP)                                               \
   struct int_obj object_int_obj_##NAME(struct obj *lhs, struct obj *rhs) {     \
@@ -22,6 +22,10 @@ MAKE_INT_BINOP(sub, -);
 MAKE_INT_BINOP(mul, *);
 MAKE_INT_BINOP(div, /);
 MAKE_INT_BINOP(xor, ^);
+MAKE_INT_BINOP(lt, <);
+MAKE_INT_BINOP(leq, <=);
+MAKE_INT_BINOP(gt, >);
+MAKE_INT_BINOP(geq, >=);
 
 MAKE_TWO_ARG_FROM_BUILTIN(cons, object_cons_obj_new, struct cons_obj);
 
@@ -222,13 +226,35 @@ struct obj *ht_keys_inner(struct obj *ht_obj) {
   struct cons_obj *c = NULL;
 
   HASH_TABLE_ITER(obj, key, val, ht->ht, {
-      struct cons_obj *c2 = gc_malloc(sizeof(struct cons_obj));
-      c2->car = *key;
-      c2->cdr = (struct obj *)c;
-      c = c2;
-    });
+    struct cons_obj *c2 = gc_malloc(sizeof(struct cons_obj));
+    *c2 = object_cons_obj_new(*key, (struct obj *)c);
+    c = c2;
+  });
 
   return (struct obj *)c;
 }
 
 MAKE_ONE_ARG_FROM_BUILTIN_EXPLICIT_RETURN(ht_keys, ht_keys_inner);
+
+struct int_obj eq_inner(struct obj *a, struct obj *b) {
+  return object_int_obj_new(eq_obj_impl(a, b));
+}
+
+MAKE_TWO_ARG_FROM_BUILTIN(eq, eq_inner, struct int_obj);
+
+struct obj *string_chars_innner(struct obj *string_obj) {
+  struct string_obj *str = (struct string_obj *)string_obj;
+  struct cons_obj *c = NULL;
+
+  for (size_t i = 0; i < str->len; i++) {
+    struct cons_obj *c2 = gc_malloc(sizeof(struct cons_obj));
+    struct int_obj *chr = gc_malloc(sizeof(struct int_obj));
+    *chr = object_int_obj_new(str->buf[str->len - (i + 1)]);
+    *c2 = object_cons_obj_new((struct obj *)chr, (struct obj *)c);
+    c = c2;
+  }
+
+  return (struct obj *)c;
+}
+
+MAKE_ONE_ARG_FROM_BUILTIN_EXPLICIT_RETURN(string_chars, string_chars_innner);
