@@ -17,7 +17,7 @@ variable = { identifier }
 null = { "null" }
 
 builtin = { "tostring" | "display"
-    | "+" | "-" | "*" | "/"
+    | "+" | "-" | "*" | "/" | "%"
     | "^" | "<=" | "<" | ">=" | ">"
     | "cons?" | "cons"
     | "null?" | "car" | "cdr"

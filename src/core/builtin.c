@@ -7,9 +7,9 @@
 #define MAKE_INT_BINOP(NAME, OP)                                               \
   struct int_obj object_int_obj_##NAME(struct obj *lhs, struct obj *rhs) {     \
     if (lhs->tag != OBJ_INT)                                                   \
-      RUNTIME_ERROR("Left operand to binary add not of integer type");         \
+      RUNTIME_ERROR("Left operand to binary " #NAME " not of integer type");   \
     if (rhs->tag != OBJ_INT)                                                   \
-      RUNTIME_ERROR("Right operand to binary add not of integer type");        \
+      RUNTIME_ERROR("Right operand to binary " #NAME " not of integer type");  \
                                                                                \
     struct int_obj *lhs_int = (struct int_obj *)lhs;                           \
     struct int_obj *rhs_int = (struct int_obj *)rhs;                           \
@@ -26,6 +26,23 @@ MAKE_INT_BINOP(lt, <);
 MAKE_INT_BINOP(leq, <=);
 MAKE_INT_BINOP(gt, >);
 MAKE_INT_BINOP(geq, >=);
+
+struct int_obj object_int_obj_mod(struct obj *lhs, struct obj *rhs) {
+  if (lhs->tag != OBJ_INT)
+    RUNTIME_ERROR("Left operand to binary mod not of integer type");
+  if (rhs->tag != OBJ_INT)
+    RUNTIME_ERROR("Right operand to binary mod not of integer type");
+
+  struct int_obj *lhs_int = (struct int_obj *)lhs;
+  struct int_obj *rhs_int = (struct int_obj *)rhs;
+
+  if (rhs_int->val == 0)
+    RUNTIME_ERROR("Divide by zero (%d %% %d)", lhs_int->val, rhs_int->val);
+
+  return object_int_obj_new(lhs_int->val % rhs_int->val);
+}
+
+MAKE_TWO_ARG_FROM_BUILTIN(mod, object_int_obj_mod, struct int_obj);
 
 MAKE_TWO_ARG_FROM_BUILTIN(cons, object_cons_obj_new, struct cons_obj);
 
