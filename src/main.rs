@@ -1,5 +1,3 @@
-#![feature(box_syntax, box_patterns, or_patterns)]
-
 pub mod base_expr;
 pub mod cdsl;
 pub mod codegen;

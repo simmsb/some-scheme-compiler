@@ -266,7 +266,7 @@ fn t_k(expr: Expr, fk: &dyn Fn(Rc<AExp>) -> CExp) -> CExp {
 
 pub fn t_c(expr: Expr, c: Rc<AExp>) -> CExp {
     match expr {
-        e @ (Expr::Lam(_) | Expr::Var(_) | Expr::Lit(_) | Expr::BuiltinIdent(_)) => {
+        e @ Expr::Lam(_) | e @ Expr::Var(_) | e @ Expr::Lit(_) | e @ Expr::BuiltinIdent(_) => {
             CExp::Call1(c, Rc::new(m(e)))
         }
         Expr::Set(n, e) => t_k(clone_rc(e), &|e| {
